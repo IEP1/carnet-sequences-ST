@@ -539,7 +539,6 @@ const app = {
         <div class="mark">S·T</div>
         <div><div class="title">Carnet de séquences</div><div class="sub">Sciences et technologie — Cycles 1, 2, 3 — Nouvelle-Calédonie</div></div>
       </div>
-      <a class="import-link" href="admin.html" title="Espace réservé au conseiller pédagogique">Espace conseiller →</a>
     </div>`;
   },
 
@@ -585,15 +584,14 @@ const app = {
         <button class="btn btn-ghost" onclick="app.discardDraft()">Ignorer</button>
       </div>
     </div>` : '';
-    const seedErr=(typeof Store!=='undefined' && Store.seedStatus) ? Store.seedStatus().error : null;
-    const errBanner = seedErr ? `<div class="draft-banner" style="background:var(--danger-soft);border-color:var(--danger);">
-      <div class="draft-banner-txt"><strong>Les séquences déjà publiées ne s'affichent pas</strong><span>${this.esc(seedErr)}</span></div></div>` : '';
     return `
-    ${errBanner}
     ${draftBanner}
     <p style="max-width:660px;color:var(--ink-soft);font-size:14.5px;">Choisissez un cycle puis une séquence. Votre travail est enregistré automatiquement dans ce navigateur au fur et à mesure. À la fin, vous pourrez le télécharger en PDF / Word et l'envoyer au conseiller pour validation.</p>
     <div class="tabs">${tabs}</div>
-    <div class="panel"><div class="theme-grid">${cards}</div></div>`;
+    <div class="panel"><div class="theme-grid">${cards}</div></div>
+    <p style="text-align:center;margin-top:26px;font-size:12.5px;">
+      <a href="admin.html" style="color:var(--ink-soft);">Vous êtes le conseiller pédagogique ? Accéder à l'espace de validation →</a>
+    </p>`;
   },
 
   renderSequenceForm(){

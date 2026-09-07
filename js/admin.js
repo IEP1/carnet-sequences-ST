@@ -49,19 +49,28 @@ const admin = {
   current(){ return this.state.selectedId ? Store.findById(this.state.selectedId) : null; },
 
   /* ---------------- actions ---------------- */
-  refresh(){ this.render(); },
-  doPublish(){ Store.setStatus(this.state.selectedId,'publie'); this.render(); },
-  doHide(){ Store.setStatus(this.state.selectedId,'masque'); this.render(); },
-  doReject(){
-    const why = prompt("Motif du refus (visible par l'enseignant via son code de suivi) :", "");
-    if(why===null) return;
-    Store.setStatus(this.state.selectedId,'rejete',{ rejectReason: why });
+  // Un seul contrôle de statut, identique quelle que soit la séquence.
+  STATUS_STEPS: [
+    { bucket:'a_valider', status:'soumis',   label:'À valider' },
+    { bucket:'en_ligne',  status:'publie',   label:'En ligne'  },
+    { bucket:'masquee',   status:'masque',   label:'Masquée'   },
+    { bucket:'refusee',   status:'rejete',   label:'Refusée'   },
+    { bucket:'corbeille', status:'supprime', label:'Corbeille' }
+  ],
+  setStatusTo(status){
+    const id=this.state.selectedId;
+    if(status==='rejete'){
+      const why=prompt("Motif du refus (visible par l'enseignant via son code de suivi) :", (this.current()||{}).rejectReason||'');
+      if(why===null) return;
+      Store.setStatus(id,'rejete',{ rejectReason: why });
+    } else {
+      Store.setStatus(id, status);
+    }
     this.render();
   },
-  doSoftDelete(){ if(confirm("Mettre à la corbeille ?")){ Store.setStatus(this.state.selectedId,'supprime'); this.back(); } },
   doHardDelete(){ if(confirm("Supprimer définitivement ? (irréversible)")){ Store.hardDelete(this.state.selectedId); this.back(); } },
   doDuplicate(){ const r=Store.duplicate(this.state.selectedId); if(r) this.open(r.id); },
-  doRestoreStatus(){ Store.setStatus(this.state.selectedId,'soumis'); this.render(); },
+  doPublish(){ Store.setStatus(this.state.selectedId,'publie'); this.render(); },
   saveNote(v){ Store.patch(this.state.selectedId,{ adminNote: v }); },
   saveDisplay(field,v){
     const rec=this.current(); if(!rec) return;
@@ -175,7 +184,7 @@ const admin = {
     if(q) rows=rows.filter(r=> (r.data.theme+' '+r.data.teacherName+' '+(r.data.objectif||'')).toLowerCase().includes(q));
     rows.sort((a,b)=> (b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
 
-    return `${this.renderSeedBanner()}${this.renderDash()}
+    return `${this.renderDash()}
     <div class="big-tabs">
       ${bigTab('a_valider','⏳ En attente de validation')}
       ${bigTab('en_ligne','✅ Publiées / existant')}
@@ -225,12 +234,6 @@ const admin = {
   quickPublish(id){ Store.setStatus(id,'publie'); this.render(); },
   quickHide(id){ Store.setStatus(id,'masque'); this.render(); },
 
-  renderSeedBanner(){
-    const st=Store.seedStatus ? Store.seedStatus() : {error:null};
-    if(!st.error) return '';
-    return `<div class="draft-banner" style="background:var(--danger-soft);border-color:var(--danger);">
-      <div class="draft-banner-txt"><strong>Séquences non chargées</strong><span>${this.esc(st.error)}</span></div></div>`;
-  },
   renderDash(){
     const st=Store.stats();
     const missing=this.missingThemes();
@@ -257,63 +260,61 @@ const admin = {
     const src=r.sourceId?Store.findById(r.sourceId):null;
     const dups=Store.duplicatesOf(r);
 
-    const actions=[];
-    if(b!=='en_ligne') actions.push(`<button class="btn btn-primary" onclick="admin.doPublish()">✅ Publier</button>`);
-    if(b==='en_ligne') actions.push(`<button class="btn btn-ghost" onclick="admin.doHide()">🙈 Masquer (retirer sans supprimer)</button>`);
-    if(b==='masquee') actions.push(`<button class="btn btn-primary" onclick="admin.doPublish()">↩️ Remettre en ligne</button>`);
-    if(b!=='refusee' && b!=='corbeille') actions.push(`<button class="btn btn-ghost" onclick="admin.doReject()">✋ Refuser</button>`);
-    if(b==='refusee') actions.push(`<button class="btn btn-ghost" onclick="admin.doRestoreStatus()">↩️ Re-basculer « à valider »</button>`);
-    actions.push(`<button class="btn btn-ghost" onclick="admin.doDuplicate()">⧉ Dupliquer</button>`);
-    actions.push(`<button class="btn btn-ghost" onclick="admin.downloadWord()">📝 Word</button>`);
-    if(b==='corbeille') actions.push(`<button class="btn btn-danger" onclick="admin.doHardDelete()">🗑️ Supprimer définitivement</button>`);
-    else actions.push(`<button class="btn btn-ghost" onclick="admin.doSoftDelete()">🗑️ Corbeille</button>`);
+    const statusCtl=`<div class="status-ctl">
+      ${this.STATUS_STEPS.map(s=>`<button class="status-opt ${b===s.bucket?'on '+s.bucket:''}" onclick="admin.setStatusTo('${s.status}')">${s.label}</button>`).join('')}
+      ${b==='corbeille'?`<button class="status-opt danger" onclick="admin.doHardDelete()">Supprimer définitivement</button>`:''}
+    </div>`;
 
-    const meta=`<dl class="meta-grid">
-      <dt>Statut</dt><dd><span class="pill ${b}">${Store.BUCKET_LABEL[b]}</span></dd>
-      <dt>Origine</dt><dd>${Store.originLabel(r)}</dd>
-      <dt>Code de suivi</dt><dd>${this.esc(r.trackingCode||'—')}</dd>
-      <dt>Pseudonyme affiché</dt><dd><input type="text" value="${this.esc(r.data.teacherName||'')}" onchange="admin.saveDisplay('teacherName',this.value)"></dd>
-      <dt>Contact (privé)</dt><dd><input type="text" value="${this.esc(r.contactEmail||r.data.contactEmail||'')}" onchange="admin.saveDisplay('contactEmail',this.value)" placeholder="—"></dd>
-      <dt>Créée / modifiée</dt><dd>${r.createdAt?new Date(r.createdAt).toLocaleString('fr-FR'):'—'} / ${r.updatedAt?new Date(r.updatedAt).toLocaleString('fr-FR'):'—'}</dd>
-      ${r.rejectReason?`<dt>Motif de refus</dt><dd>${this.esc(r.rejectReason)}</dd>`:''}
-    </dl>`;
+    const secondary=`<div class="detail-actions">
+      ${this.state.editing
+        ? `<button class="btn btn-primary" onclick="admin.saveEdit()">💾 Enregistrer les retouches</button>
+           <button class="btn btn-ghost" onclick="admin.cancelEdit()">Annuler</button>`
+        : `<button class="btn btn-ghost" onclick="admin.startEdit()">✏️ Modifier le contenu</button>`}
+      <button class="btn btn-ghost" onclick="admin.doDuplicate()">⧉ Dupliquer</button>
+      <button class="btn btn-ghost" onclick="admin.downloadWord()">📝 Word</button>
+    </div>`;
 
-    const dupBlock=dups.length?`<div class="admin-block"><h3>⚠ Doublons possibles (même cycle + thème)</h3>
-      <ul class="rev-list">${dups.map(d=>`<li><span>${this.esc(d.data.theme)} — ${this.esc(d.data.teacherName)} <span class="pill ${Store.bucket(d)}">${Store.BUCKET_LABEL[Store.bucket(d)]}</span></span><button class="btn btn-ghost" style="padding:3px 9px;font-size:12px;" onclick="admin.open('${d.id}')">Ouvrir</button></li>`).join('')}</ul></div>`:'';
+    const chips=`<div class="detail-chips">
+      <span class="chip">${Store.originLabel(r)}</span>
+      ${r.trackingCode?`<span class="chip">Suivi ${this.esc(r.trackingCode)}</span>`:''}
+      ${r.publishedAt?`<span class="chip">Publiée le ${new Date(r.publishedAt).toLocaleDateString('fr-FR')}</span>`:''}
+      <span class="chip">Modifiée ${r.updatedAt?new Date(r.updatedAt).toLocaleDateString('fr-FR'):'—'}</span>
+    </div>`;
 
-    const diffBlock=src?`<div class="admin-block"><h3>Modification proposée — écart avec l'original (${this.esc(src.data.teacherName)})</h3>
-      ${this.diffTable(app.diffSequences(src.data, r.data))}
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="admin.doPublish()">Publier en remplacement</button>
-        <span style="font-size:12px;color:var(--ink-soft);align-self:center;">(pour publier les deux en parallèle : publier celle-ci sans masquer l'originale)</span>
-      </div></div>`:'';
-
-    const body = this.state.editing ? '' : `
-      <div class="admin-block"><h3>Aperçu</h3>${app.entryDetailHTML(r.data)}</div>`;
-
-    return `<div class="admin-wrap-inner">
-      <div class="detail">
-        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="admin.back()">← Retour à la liste</button>
-        <h2 style="margin:8px 0 2px;">${this.esc(r.data.theme)}</h2>
-        <p style="color:var(--ink-soft);margin-top:0;">${CYCLE_LABEL[r.data.cycle]} · ${this.esc(r.data.niveauClasse||'niveau non précisé')}</p>
-        ${meta}
-        <div class="action-bar">${actions.join('')}</div>
-        <div class="admin-block"><h3>Note interne</h3>
-          <textarea placeholder="Visible seulement ici" onchange="admin.saveNote(this.value)">${this.esc(r.adminNote||'')}</textarea></div>
-        ${dupBlock}
-        ${diffBlock}
-        <div class="admin-block"><h3>Contenu</h3>
-          ${this.state.editing
-            ? `<button class="btn btn-primary" onclick="admin.saveEdit()">💾 Enregistrer les retouches</button>
-               <button class="btn btn-ghost" onclick="admin.cancelEdit()">Annuler</button>`
-            : `<button class="btn btn-ghost" onclick="admin.startEdit()">✏️ Modifier le contenu</button>`}
-        </div>
-        ${this.state.editing ? this.renderEditor() : ''}
-        ${body}
-        ${this.renderIa(r)}
-        ${this.renderHistory(r)}
+    const identity=`<div class="admin-block"><h3>Attribution</h3>
+      <div class="id-row">
+        <label>Pseudonyme affiché<input type="text" value="${this.esc(r.data.teacherName||'')}" onchange="admin.saveDisplay('teacherName',this.value)"></label>
+        <label>Contact (privé, jamais affiché)<input type="text" value="${this.esc(r.contactEmail||r.data.contactEmail||'')}" onchange="admin.saveDisplay('contactEmail',this.value)" placeholder="—"></label>
       </div>
-    </div></div>`;
+      ${r.rejectReason?`<p class="reject-note">Motif de refus transmis : ${this.esc(r.rejectReason)}</p>`:''}
+    </div>`;
+
+    const dupBlock=dups.length?`<div class="admin-block warn"><h3>⚠ Doublons possibles — même cycle et même thème</h3>
+      <ul class="rev-list">${dups.map(d=>`<li><span>${this.esc(d.data.theme)} — ${this.esc(d.data.teacherName)} <span class="pill ${Store.bucket(d)}">${Store.BUCKET_LABEL[Store.bucket(d)]}</span></span><button class="link-btn" onclick="admin.open('${d.id}')">Ouvrir →</button></li>`).join('')}</ul></div>`:'';
+
+    const diffBlock=src?`<div class="admin-block"><h3>Modification proposée — écart avec « ${this.esc(src.data.teacherName)} »</h3>
+      ${this.diffTable(app.diffSequences(src.data, r.data))}
+      <p style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">Pour <b>remplacer</b> : passez cette séquence « En ligne » et masquez l'originale.
+      Pour <b>garder les deux</b> : passez celle-ci « En ligne » sans toucher à l'originale.</p></div>`:'';
+
+    return `<div class="admin-wrap-inner"><div class="detail">
+      <button class="link-btn" onclick="admin.back()">← Retour à la liste</button>
+      <h2>${this.esc(r.data.theme)}</h2>
+      <p class="detail-sub">${CYCLE_LABEL[r.data.cycle]} · ${this.esc(r.data.niveauClasse||'niveau non précisé')}</p>
+      ${chips}
+
+      <div class="admin-block"><h3>Statut sur le site</h3>${statusCtl}</div>
+      ${secondary}
+
+      ${identity}
+      <div class="admin-block"><h3>Note interne</h3>
+        <textarea placeholder="Visible seulement ici, jamais publiée" onchange="admin.saveNote(this.value)">${this.esc(r.adminNote||'')}</textarea></div>
+      ${dupBlock}
+      ${diffBlock}
+      ${this.state.editing ? this.renderEditor() : `<div class="admin-block"><h3>Aperçu de la séquence</h3>${app.entryDetailHTML(r.data)}</div>`}
+      ${this.renderIa(r)}
+      ${this.renderHistory(r)}
+    </div></div></div>`;
   },
 
   diffTable(diffs){
