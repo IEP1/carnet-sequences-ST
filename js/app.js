@@ -129,8 +129,10 @@ const app = {
     const clone=JSON.parse(JSON.stringify(entry.data));
     const original=JSON.parse(JSON.stringify(entry.data));
     clone.currentSeanceIndex=0;
-    if(entry.status==='ia' || !clone.teacherName) clone.teacherName=Pseudonym.current();
-    if(clone.contactEmail===undefined) clone.contactEmail='';
+    // Celui qui propose une modification signe de SON pseudonyme ;
+    // l'auteur d'origine est conservé dans modificationSource / le diff.
+    clone.teacherName=Pseudonym.current();
+    clone.contactEmail='';
     this.state.form=clone;
     this.state.pseudoOptions=null;
     this.state.originalSnapshot=original;
@@ -941,3 +943,9 @@ window.addEventListener('beforeunload', function(e){
 })();
 
 app.render();
+
+/* Les séquences publiées arrivent de façon asynchrone (data/sequences.json,
+   puis Supabase) : on redessine quand elles sont là. */
+if(typeof SEQUENCES_READY !== 'undefined'){
+  SEQUENCES_READY.then(function(){ app.render(); });
+}
