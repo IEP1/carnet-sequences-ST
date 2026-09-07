@@ -1,13 +1,13 @@
 [
  {
-  "id": "C1__les-besoins-des-vegetaux__person",
+  "id": "C1__les-besoins-des-vegetaux__nautile-ingenieux",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C1",
    "theme": "Les besoins des végétaux",
-   "teacherName": "PERSON",
-   "school": "OASIS",
+   "teacherName": "Nautile ingénieux",
+   "school": "",
    "niveauClasse": "GS",
    "nbEleves": "22",
    "domaineSocle": [
@@ -139,14 +139,14 @@
   }
  },
  {
-  "id": "C3__alimentation-humaine__jouvenelle",
+  "id": "C3__alimentation-humaine__kaori-studieux",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C3",
    "theme": "Alimentation humaine",
-   "teacherName": "Jouvenelle",
-   "school": "CLAIN",
+   "teacherName": "Kaori studieux",
+   "school": "",
    "niveauClasse": "CM1",
    "nbEleves": "25",
    "domaineSocle": [
@@ -385,14 +385,14 @@
   }
  },
  {
-  "id": "C2__les-etats-de-la-matiere__marylene-et-naila",
+  "id": "C2__les-etats-de-la-matiere__banian-attentif",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C2",
    "theme": "Les états de la matière",
-   "teacherName": "Marylène et Naïla",
-   "school": "Jack Mainguet",
+   "teacherName": "Banian attentif",
+   "school": "",
    "niveauClasse": "CP",
    "nbEleves": "22",
    "domaineSocle": [
@@ -472,14 +472,14 @@
   }
  },
  {
-  "id": "C2__la-fonction-des-objets__poncet",
+  "id": "C2__la-fonction-des-objets__corail-perspicace",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C2",
    "theme": "La fonction des objets",
-   "teacherName": "Poncet",
-   "school": "Jack Mainguet",
+   "teacherName": "Corail perspicace",
+   "school": "",
    "niveauClasse": "Cycle 2",
    "nbEleves": "22",
    "domaineSocle": [
@@ -665,14 +665,14 @@
   }
  },
  {
-  "id": "C2__les-circuits-electriques__johanna-sandra-arnaud",
+  "id": "C2__les-circuits-electriques__niaouli-patient",
   "status": "assistee",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C2",
    "theme": "Les circuits électriques",
-   "teacherName": "Johanna, Sandra, Arnaud",
-   "school": "Gustave CLAIN",
+   "teacherName": "Niaouli patient",
+   "school": "",
    "niveauClasse": "CP",
    "nbEleves": "22",
    "domaineSocle": [
@@ -872,14 +872,14 @@
   }
  },
  {
-  "id": "C1__les-caracteristiques-sensorielles__delle-case",
+  "id": "C1__les-caracteristiques-sensorielles__notou-curieux",
   "status": "assistee",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C1",
    "theme": "Les caractéristiques sensorielles",
-   "teacherName": "DELLE CASE",
-   "school": "OASIS",
+   "teacherName": "Notou curieux",
+   "school": "",
    "niveauClasse": "PS/SM",
    "nbEleves": "25",
    "domaineSocle": [
@@ -1078,14 +1078,14 @@
   }
  },
  {
-  "id": "C3__prevention-et-sante__nouveau",
+  "id": "C3__prevention-et-sante__houp-savant",
   "status": "assistee",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C3",
    "theme": "Prévention et santé",
-   "teacherName": "NOUVEAU",
-   "school": "Gustave CLAIN",
+   "teacherName": "Houp savant",
+   "school": "",
    "niveauClasse": "CM2",
    "nbEleves": "23",
    "domaineSocle": [
@@ -1222,14 +1222,14 @@
   }
  },
  {
-  "id": "C3__alimentation-humaine__cycle-3-jack-mainguet",
+  "id": "C3__alimentation-humaine__cagou-methodique",
   "status": "assistee",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C3",
    "theme": "Alimentation humaine",
-   "teacherName": "Cycle 3 (Jack Mainguet)",
-   "school": "Jack Mainguet",
+   "teacherName": "Cagou méthodique",
+   "school": "",
    "niveauClasse": "CM1/CM2",
    "nbEleves": "23",
    "domaineSocle": [
@@ -1423,14 +1423,14 @@
   }
  },
  {
-  "id": "C2__les-circuits-electriques__johanna-sandra-arnaud__existante",
+  "id": "C2__les-circuits-electriques__niaouli-patient__existante",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C2",
    "theme": "Les circuits électriques",
-   "teacherName": "Johanna, Sandra, Arnaud",
-   "school": "Gustave CLAIN",
+   "teacherName": "Niaouli patient",
+   "school": "",
    "niveauClasse": "CP",
    "nbEleves": "22",
    "domaineSocle": [
@@ -1616,14 +1616,14 @@
   }
  },
  {
-  "id": "C1__les-caracteristiques-sensorielles__delle-case__existante",
+  "id": "C1__les-caracteristiques-sensorielles__notou-curieux__existante",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C1",
    "theme": "Les caractéristiques sensorielles",
-   "teacherName": "DELLE CASE",
-   "school": "OASIS",
+   "teacherName": "Notou curieux",
+   "school": "",
    "niveauClasse": "PS/SM",
    "nbEleves": "25",
    "domaineSocle": [
@@ -1808,14 +1808,14 @@
   }
  },
  {
-  "id": "C3__prevention-et-sante__nouveau__existante",
+  "id": "C3__prevention-et-sante__houp-savant__existante",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C3",
    "theme": "Prévention et santé",
-   "teacherName": "NOUVEAU",
-   "school": "Gustave CLAIN",
+   "teacherName": "Houp savant",
+   "school": "",
    "niveauClasse": "CM2",
    "nbEleves": "23",
    "domaineSocle": [
@@ -1948,14 +1948,14 @@
   }
  },
  {
-  "id": "C3__alimentation-humaine__cycle-3-jack-mainguet__existante",
+  "id": "C3__alimentation-humaine__cagou-methodique__existante",
   "status": "existante",
   "origin": "ap3-2025",
   "data": {
    "cycle": "C3",
    "theme": "Alimentation humaine",
-   "teacherName": "Cycle 3 (Jack Mainguet)",
-   "school": "Jack Mainguet",
+   "teacherName": "Cagou méthodique",
+   "school": "",
    "niveauClasse": "CM1/CM2",
    "nbEleves": "23",
    "domaineSocle": [
