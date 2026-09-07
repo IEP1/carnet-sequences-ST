@@ -137,6 +137,7 @@ const app = {
     this.state.pseudoOptions=null;
     this.state.originalSnapshot=original;
     this.state.isModification=true;
+    this.state.modificationSourceId=entry.id||null;
     this.state.modificationSource={teacherName: entry.status==='ia' ? "la séquence modèle IA" : entry.data.teacherName, status:entry.status};
     this.state.cycle=entry.data.cycle;
     const idx=(THEMES[entry.data.cycle]||[]).findIndex(t=>t.t===entry.data.theme);
@@ -145,7 +146,10 @@ const app = {
     this.setView('sequence');
   },
   computeDiff(){
-    const o=this.state.originalSnapshot, f=this.state.form;
+    return this.diffSequences(this.state.originalSnapshot, this.state.form);
+  },
+  /* Diff générique entre deux objets séquence (réutilisé par la zone admin / l'IA). */
+  diffSequences(o, f){
     if(!o || !f) return [];
     const diffs=[];
     const fieldLabels={teacherName:"Pseudonyme", school:"École", niveauClasse:"Niveau / Classe", nbEleves:"Nb élèves", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
@@ -463,62 +467,6 @@ const app = {
     const f=entryOverride||this.state.form;
     return 'Sequence_'+f.cycle+'_'+this.slugify(f.theme)+'_'+this.slugify(f.teacherName);
   },
-  downloadZip(){
-    const f=this.state.form;
-    const base=this.fileNameBase();
-    const exportData = this.state.isModification
-      ? Object.assign({}, f, {_modificationInfo: {proposeePar: f.teacherName, sequenceOriginale: (this.state.modificationSource||{}).teacherName, statutOriginal: (this.state.modificationSource||{}).status, modifications: this.computeDiff()}})
-      : f;
-    const jsonBytes=strToUint8(JSON.stringify(exportData, null, 2));
-    const blob=createZip([
-      {name: base+'.json', data: jsonBytes}
-    ]);
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=base+'.zip';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 2000);
-    this.state.hasDownloaded=true;
-  },
-
-  /* ---------- email : webmail direct (Gmail / Outlook) ou logiciel local, + copie de secours ---------- */
-  emailParts(){
-    const f=this.state.form;
-    const isModif=this.state.isModification;
-    const tag=isModif ? SUBJECT_TAG_MODIF : SUBJECT_TAG;
-    const subject=tag+' '+CYCLE_LABEL[f.cycle]+' — '+f.theme+' — '+(f.teacherName||'sans nom');
-    const modifLine = isModif ? ("- Proposition de modification de la séquence de : "+((this.state.modificationSource||{}).teacherName||'—')+"\n") : "";
-    const body=
-      "Bonjour,\n\n"+
-      (isModif ? "Récapitulatif d'une proposition de modification :\n" : "Récapitulatif de l'envoi :\n")+
-      modifLine+
-      "- Groupe / enseignant·e : "+(f.teacherName||'—')+"\n"+
-      "- École : "+(f.school||'—')+"\n"+
-      "- Cycle : "+CYCLE_LABEL[f.cycle]+"\n"+
-      "- Séquence : "+f.theme+"\n"+
-      "- Niveau / classe : "+(f.niveauClasse||'—')+"\n\n"+
-      (isModif ? "Le détail des modifications proposées est dans le fichier .zip joint (champ _modificationInfo).\n\n" : "")+
-      "⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️\n"+
-      "N'OUBLIEZ PAS DE METTRE LE FICHIER ZIP EN PIÈCE JOINTE AVANT D'ENVOYER !\n"+
-      "⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️\n\n"+
-      "Cordialement";
-    return {subject, body};
-  },
-  openGmailWeb(){
-    const {subject, body}=this.emailParts();
-    window.open("https://mail.google.com/mail/?view=cm&fs=1&to="+encodeURIComponent(CONSEILLER_EMAIL)+"&su="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body), '_blank');
-  },
-  openMailClient(){
-    const {subject, body}=this.emailParts();
-    window.location.href="mailto:"+encodeURIComponent(CONSEILLER_EMAIL)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
-  },
-  copyEmailText(){
-    const {subject, body}=this.emailParts();
-    const text="À : "+CONSEILLER_EMAIL+"\nObjet : "+subject+"\n\n"+body+"\n\n(N'oubliez pas de joindre le fichier .zip téléchargé.)";
-    navigator.clipboard && navigator.clipboard.writeText(text);
-    alert("Le texte de l'email a été copié. Ouvrez votre messagerie, créez un nouveau message vers "+CONSEILLER_EMAIL+", et collez (Ctrl+V) ce texte.");
-  },
-
   activeStepColumns(s, stepsSubset){
     const list = stepsSubset || STEPS;
     const cols=[
@@ -604,6 +552,7 @@ const app = {
     else if(s.view==='sequence') html+=this.renderSequenceForm();
     else if(s.view==='seances') html+=this.renderSeances();
     else if(s.view==='review') html+=this.renderReview();
+    else if(s.view==='submitted') html+=this.renderSubmitted();
     else if(s.view==='presentation') html+=this.renderPresentation();
     el.innerHTML=html;
     this.attachHandlers();
@@ -868,31 +817,64 @@ const app = {
       ${this.entryDetailHTML(f)}
       ${diffBox}
 
-      <h2>Finaliser et envoyer</h2>
+      <h2>Finaliser</h2>
       <div class="send-steps">
         <div class="send-step"><div class="num"></div><div class="body">
-          <strong>Télécharger votre fiche (.docx)</strong>
-          <p>Un vrai document Word, à garder pour vous : à adapter, imprimer ou classer comme vous le souhaitez.</p>
-          <button class="btn btn-primary" style="margin-top:8px;" onclick="app.downloadDocx()">📝 Télécharger la fiche Word</button>
-          <button class="btn btn-ghost" style="margin-top:8px;margin-left:8px;" onclick="app.printEntry(app.state.form)">🖨️ Aperçu / imprimer maintenant</button>
+          <strong>Garder une copie pour vous</strong>
+          <p>Un document à adapter, imprimer ou classer comme vous le souhaitez.</p>
+          <button class="btn btn-ghost" style="margin-top:8px;" onclick="app.downloadDocx()">📝 Télécharger en Word</button>
+          <button class="btn btn-ghost" style="margin-top:8px;margin-left:8px;" onclick="app.printEntry(app.state.form)">🖨️ Aperçu / PDF</button>
         </div></div>
         <div class="send-step"><div class="num"></div><div class="body">
-          <strong>Télécharger le pack pour le conseiller (.zip)</strong>
-          <p>Les données de la séquence, dans un format que le conseiller pédagogique pourra réutiliser. C'est ce fichier qu'il faut joindre à l'email — pas le Word.</p>
-          <button class="btn btn-primary" style="margin-top:8px;" onclick="app.downloadZip()">📦 Télécharger le pack (.zip)</button>
-        </div></div>
-        <div class="send-step"><div class="num"></div><div class="body">
-          <strong>Envoyer par email à ${this.esc(CONSEILLER_EMAIL)}</strong>
-          <p>Message pré-rempli. Joignez le fichier .zip téléchargé juste avant, puis envoyez.</p>
-          <button class="btn btn-primary" style="margin-top:8px;" onclick="app.openGmailWeb()">✉️ Gmail (navigateur)</button>
-          <button class="btn btn-primary" style="margin-top:8px;margin-left:8px;" onclick="app.openMailClient()">✉️ Mon logiciel de messagerie</button>
-          <p style="margin-top:10px;">Aucun des deux boutons ne fonctionne ? <button class="btn btn-ghost" onclick="app.copyEmailText()">📋 Copier le texte de l'email</button> puis collez-le manuellement dans un nouveau message vers ${this.esc(CONSEILLER_EMAIL)}.</p>
+          <strong>${isModif ? "Proposer cette modification au conseiller" : "Envoyer la séquence au conseiller"}</strong>
+          <p>Elle arrive dans son espace de validation. Après relecture (et éventuelles retouches), elle est publiée sur le site. Vous recevrez un code pour suivre son état.</p>
+          <button class="btn btn-primary" style="margin-top:8px;" onclick="app.submitSequence()">📤 ${isModif ? "Proposer la modification" : "Envoyer pour validation"}</button>
         </div></div>
       </div>
 
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="app.goToSeanceIndex(${f.seances.length-1})">← Revenir aux séances</button>
         <button class="btn btn-ghost" onclick="app.restart()">Nouvelle séquence</button>
+      </div>
+    </div>`;
+  },
+
+  submitSequence(){
+    const f=this.state.form;
+    if(!f) return;
+    if(!f.teacherName || !f.teacherName.trim()){ alert("Merci de choisir un pseudonyme avant d'envoyer."); return; }
+    const filled=(f.seances||[]).some(s=>['enseignant','eleve','consigne'].some(k=>Object.values(s.steps||{}).some(st=>(st[k]||'').trim())) || (s.objectifOp||'').trim());
+    if(!filled && !confirm("La séquence semble presque vide. L'envoyer quand même ?")) return;
+    const rec=Store.submit({
+      data: f,
+      contactEmail: f.contactEmail||'',
+      sourceId: this.state.isModification ? (this.state.modificationSourceId||null) : null
+    });
+    this.state.submitted=rec;
+    this.state.form=null;
+    this.state.isModification=false;
+    this.state.originalSnapshot=null;
+    clearTimeout(this._draftTimer);
+    Draft.clear();
+    this.setView('submitted');
+  },
+
+  renderSubmitted(){
+    const rec=this.state.submitted||{};
+    const f=rec.data||this.state.form||{};
+    return `<div class="panel" style="text-align:center;">
+      <div style="font-size:44px;line-height:1;margin-bottom:6px;">📬</div>
+      <h2 style="margin-top:0;">Séquence envoyée&nbsp;!</h2>
+      <p style="color:var(--ink-soft);max-width:520px;margin:0 auto 18px;">Elle est arrivée dans l'espace de validation du conseiller pédagogique. Après relecture, elle sera publiée sur le site.</p>
+      <div class="stamp-box" style="max-width:360px;margin:0 auto 20px;text-align:center;">
+        <span class="eyebrow">Votre code de suivi</span>
+        <h3 style="letter-spacing:2px;font-size:24px;margin:6px 0;">${this.esc(rec.trackingCode||'—')}</h3>
+        <p>Notez-le : il permettra de retrouver l'état de votre séquence.</p>
+      </div>
+      <p style="font-size:13.5px;">Pseudonyme : <strong>${this.esc(f.teacherName||'—')}</strong>${f.contactEmail?` · contact transmis (privé) : <strong>${this.esc(f.contactEmail)}</strong>`:''}</p>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-ghost" onclick="app.downloadDocx(app.state.submitted.data)">📝 Télécharger ma copie (Word)</button>
+        <button class="btn btn-primary" onclick="app.restart()">Nouvelle séquence</button>
       </div>
     </div>`;
   },
@@ -916,36 +898,45 @@ const app = {
   }
 };
 
-document.getElementById('import-input').addEventListener('change', function(e){
-  if(e.target.files && e.target.files[0]) app.handleImportFile(e.target.files[0]);
-  e.target.value='';
-});
+/* Amorçage — uniquement sur la page publique (présence de #app).
+   La zone admin (admin.html) charge ce fichier pour réutiliser ses fonctions
+   d'affichage / export, mais ne doit pas lancer l'application enseignant. */
+if(document.getElementById('app')){
 
-window.addEventListener('beforeunload', function(e){
-  // Le brouillon est déjà sauvegardé en local ; on prévient tout de même
-  // tant que l'enseignant n'a rien exporté (fichier .zip / .docx).
-  if(app.state.form && !app.state.hasDownloaded){
-    e.preventDefault();
-    e.returnValue = '';
+  var importInput=document.getElementById('import-input');
+  if(importInput){
+    importInput.addEventListener('change', function(e){
+      if(e.target.files && e.target.files[0]) app.handleImportFile(e.target.files[0]);
+      e.target.value='';
+    });
   }
-});
 
-/* Un brouillon local existe-t-il ? On propose de le reprendre depuis l'accueil. */
-(function(){
-  var d=Draft.load();
-  if(d && d.payload && d.payload.form){
-    app.state.pendingDraft={
-      savedAt:d.savedAt,
-      theme:d.payload.form.theme||'',
-      teacherName:d.payload.form.teacherName||''
-    };
+  window.addEventListener('beforeunload', function(e){
+    // Le brouillon est déjà sauvegardé en local ; on prévient tout de même
+    // tant que l'enseignant n'a rien exporté / envoyé.
+    if(app.state.form && !app.state.hasDownloaded && !app.state.submitted){
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  /* Un brouillon local existe-t-il ? On propose de le reprendre depuis l'accueil. */
+  (function(){
+    var d=Draft.load();
+    if(d && d.payload && d.payload.form){
+      app.state.pendingDraft={
+        savedAt:d.savedAt,
+        theme:d.payload.form.theme||'',
+        teacherName:d.payload.form.teacherName||''
+      };
+    }
+  })();
+
+  app.render();
+
+  /* Les séquences publiées arrivent de façon asynchrone (Store → data/sequences.json,
+     puis Supabase) : on redessine quand elles sont là. */
+  if(typeof SEQUENCES_READY !== 'undefined'){
+    SEQUENCES_READY.then(function(){ app.render(); });
   }
-})();
-
-app.render();
-
-/* Les séquences publiées arrivent de façon asynchrone (data/sequences.json,
-   puis Supabase) : on redessine quand elles sont là. */
-if(typeof SEQUENCES_READY !== 'undefined'){
-  SEQUENCES_READY.then(function(){ app.render(); });
 }
