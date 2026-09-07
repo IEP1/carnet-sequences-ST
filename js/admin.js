@@ -126,20 +126,7 @@ const admin = {
   },
 
   /* ---------------- outils ---------------- */
-  exportJson(){
-    const blob=new Blob([Store.exportAll()],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='carnet-sequences_sauvegarde_'+new Date().toISOString().slice(0,10)+'.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  },
-  importJson(file){
-    const r=new FileReader();
-    r.onload=e=>{ try{ Store.importLocal(e.target.result); alert('Import effectué.'); this.render(); }
-      catch(err){ alert('Fichier illisible : '+err.message); } };
-    r.readAsText(file);
-  },
-  resetMock(){ if(confirm("Vider les données locales de la maquette (soumissions, statuts, révisions) ? Le seed reste intact.")){ Store.resetLocal(); this.back(); } },
+  resetMock(){ if(confirm("Vider les données locales de la maquette (soumissions, statuts, révisions) ? Les séquences de référence restent intactes.")){ Store.resetLocal(); this.back(); } },
   downloadWord(){ app.downloadDocx(this.current().data); },
 
   /* ---------------- rendu ---------------- */
@@ -149,6 +136,7 @@ const admin = {
     let html=this.renderTop();
     html+= this.state.view==='detail' && this.current() ? this.renderDetail() : this.renderList();
     el.innerHTML=html;
+    if(typeof app!=='undefined' && app.autoGrowAll) app.autoGrowAll(el);
     this.wire();
   },
 
@@ -176,22 +164,27 @@ const admin = {
     const all=Store.listAll();
     const counts={};
     all.forEach(r=>{ const b=Store.bucket(r); counts[b]=(counts[b]||0)+1; });
-    const tabs=['a_valider','en_ligne','masquee','refusee','corbeille'].map(b=>
-      `<button class="filter-tab ${this.state.filter===b?'active':''}" onclick="admin.setFilter('${b}')">${Store.BUCKET_LABEL[b]}<span class="c">${counts[b]||0}</span></button>`
-    ).join('') + `<button class="filter-tab ${this.state.filter==='all'?'active':''}" onclick="admin.setFilter('all')">Toutes<span class="c">${all.length}</span></button>`;
+
+    const bigTab=(b,label)=>`<button class="big-tab ${this.state.filter===b?'active':''}" onclick="admin.setFilter('${b}')">
+      <span class="bt-label">${label}</span><span class="bt-count">${counts[b]||0}</span></button>`;
+    const smTab=(b,label)=>`<button class="filter-tab ${this.state.filter===b?'active':''}" onclick="admin.setFilter('${b}')">${label}<span class="c">${counts[b]||0}</span></button>`;
 
     let rows=all.filter(r=> this.state.filter==='all' ? true : Store.bucket(r)===this.state.filter);
     if(this.state.cycle) rows=rows.filter(r=>r.data.cycle===this.state.cycle);
     const q=this.state.search.trim().toLowerCase();
     if(q) rows=rows.filter(r=> (r.data.theme+' '+r.data.teacherName+' '+(r.data.objectif||'')).toLowerCase().includes(q));
-    rows.sort((a,b)=> (b.updatedAt||b.createdAt||'') .localeCompare(a.updatedAt||a.createdAt||''));
+    rows.sort((a,b)=> (b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
 
-    const st=Store.stats();
-    const missing=this.missingThemes();
-
-    return `${this.renderDash(st,missing)}
-    <div class="filters">${tabs}</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    return `${this.renderSeedBanner()}${this.renderDash()}
+    <div class="big-tabs">
+      ${bigTab('a_valider','⏳ En attente de validation')}
+      ${bigTab('en_ligne','✅ Publiées / existant')}
+    </div>
+    <div class="filters">
+      ${smTab('masquee','Masquées')} ${smTab('refusee','Refusées')} ${smTab('corbeille','Corbeille')}
+      <button class="filter-tab ${this.state.filter==='all'?'active':''}" onclick="admin.setFilter('all')">Toutes<span class="c">${all.length}</span></button>
+    </div>
+    <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;">
       <input type="text" placeholder="Rechercher (thème, pseudo, objectif)…" value="${this.esc(this.state.search)}"
         oninput="admin.state.search=this.value; admin.render()" style="flex:1;min-width:200px;">
       <select onchange="admin.state.cycle=this.value; admin.render()">
@@ -203,9 +196,7 @@ const admin = {
       ${rows.length ? rows.map(r=>this.rowHTML(r)).join('') : '<div class="empty">Aucune séquence dans cette vue.</div>'}
     </div>
     <div class="admin-tools">
-      <button class="btn btn-ghost" onclick="admin.exportJson()">⬇️ Exporter tout (JSON)</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('admin-import').click()">⬆️ Importer une sauvegarde</button>
-      <button class="btn btn-ghost" onclick="admin.resetMock()">♻️ Réinitialiser la maquette</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="admin.resetMock()">♻️ Réinitialiser la maquette (données locales)</button>
     </div></div>`;
   },
 
@@ -213,8 +204,14 @@ const admin = {
     const b=Store.bucket(r);
     const dups=Store.duplicatesOf(r);
     const d=r.updatedAt||r.createdAt;
-    return `<button class="seq-row ${this.state.selectedId===r.id?'sel':''}" onclick="admin.open('${r.id}')">
-      <div class="l1"><span class="theme">${this.esc(r.data.theme)}</span><span class="pill ${b}">${Store.BUCKET_LABEL[b]}</span></div>
+    let quick='';
+    if(b==='en_ligne') quick=`<button class="row-act" onclick="event.stopPropagation();admin.quickHide('${r.id}')">Masquer</button>`;
+    else if(b==='masquee') quick=`<button class="row-act primary" onclick="event.stopPropagation();admin.quickPublish('${r.id}')">Publier</button>`;
+    else if(b==='a_valider') quick=`<button class="row-act primary" onclick="event.stopPropagation();admin.quickPublish('${r.id}')">Publier</button>`;
+    return `<div class="seq-row ${this.state.selectedId===r.id?'sel':''}" role="button" tabindex="0"
+        onclick="admin.open('${r.id}')" onkeydown="if(event.key==='Enter')admin.open('${r.id}')">
+      <div class="l1"><span class="theme">${this.esc(r.data.theme)}</span>
+        <span style="display:flex;gap:6px;align-items:center;"><span class="pill ${b}">${Store.BUCKET_LABEL[b]}</span>${quick}</span></div>
       <div class="l2">
         <span>${CYCLE_LABEL[r.data.cycle]||r.data.cycle}</span>
         <span>· ${this.esc(r.data.teacherName||'—')}</span>
@@ -223,15 +220,25 @@ const admin = {
         ${dups.length?`<span class="dup-flag">⚠ doublon possible (${dups.length})</span>`:''}
         ${r.sourceId?`<span class="dup-flag" style="background:var(--sky-soft);color:var(--sky);">modification proposée</span>`:''}
       </div>
-    </button>`;
+    </div>`;
   },
+  quickPublish(id){ Store.setStatus(id,'publie'); this.render(); },
+  quickHide(id){ Store.setStatus(id,'masque'); this.render(); },
 
-  renderDash(st,missing){
+  renderSeedBanner(){
+    const st=Store.seedStatus ? Store.seedStatus() : {error:null};
+    if(!st.error) return '';
+    return `<div class="draft-banner" style="background:var(--danger-soft);border-color:var(--danger);">
+      <div class="draft-banner-txt"><strong>Séquences non chargées</strong><span>${this.esc(st.error)}</span></div></div>`;
+  },
+  renderDash(){
+    const st=Store.stats();
+    const missing=this.missingThemes();
     return `<div class="dash">
-      <div class="card"><b>${st.buckets.a_valider||0}</b> à valider</div>
-      <div class="card"><b>${st.published}</b> en ligne</div>
-      <div class="card"><b>${st.byCycle.C1}/${st.byCycle.C2}/${st.byCycle.C3}</b> C1 / C2 / C3</div>
-      <div class="card" style="max-width:420px;"><b>${missing.length}</b> thème(s) sans séquence en ligne
+      <div class="card"><b>${st.buckets.a_valider||0}</b> en attente</div>
+      <div class="card"><b>${st.published}</b> publiées</div>
+      <div class="card"><b>${st.byCycle.C1} / ${st.byCycle.C2} / ${st.byCycle.C3}</b> C1 / C2 / C3</div>
+      <div class="card" style="max-width:440px;"><b>${missing.length}</b> thème(s) sans séquence publiée
         ${missing.length?`<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">${missing.slice(0,6).map(m=>this.esc(m)).join(' · ')}${missing.length>6?'…':''}</div>`:''}</div>
     </div>`;
   },
@@ -382,10 +389,7 @@ const admin = {
         ${F('Différenciation','seances.'+i+'.differenciation',true)}
       </div>`).join('');
     return `<div class="admin-block edit-form"><h3>Retouche du contenu</h3>
-      <div class="mini-grid">
-        ${F('Niveau / classe','niveauClasse')}
-        ${F('Nb élèves','nbEleves')}
-      </div>
+      <div style="max-width:280px;">${F('Niveau / classe','niveauClasse')}</div>
       ${F('Attendu de fin de cycle','attendu',true)}
       ${F('Objectif général','objectif',true)}
       <div class="mini-grid">${F('Vocabulaire','vocabulaire',true)}${F('Prérequis','prerequis',true)}</div>
@@ -402,9 +406,6 @@ const admin = {
   },
 
   wire(){
-    const imp=document.getElementById('admin-import');
-    if(imp && !imp._wired){ imp._wired=true;
-      imp.addEventListener('change',e=>{ if(e.target.files[0]) admin.importJson(e.target.files[0]); e.target.value=''; }); }
     const gate=document.getElementById('gate-code');
     if(gate) gate.addEventListener('keydown',e=>{ if(e.key==='Enter') admin.tryUnlock(); });
   }

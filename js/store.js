@@ -19,13 +19,14 @@
    ============================================================ */
 const Store = (function(){
   const LS_KEY   = 'cds:store:v1';
-  const SEED_URL = 'data/sequences.json?v=20260907c';
+  const SEED_URL = 'data/sequences.json?v=20260907d';
 
   const PUBLISHED = ['publie','existante','assistee','ia'];
 
   let seed  = [];
   let local = { submissions: [], overrides: {} };
   let ready = null;
+  let seedError = null;   // message si le seed n'a pas pu être chargé
 
   /* ---------------- localStorage ---------------- */
   function loadLocal(){
@@ -50,10 +51,17 @@ const Store = (function(){
     loadLocal();
     ready = fetch(SEED_URL)
       .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(function(rows){ seed = Array.isArray(rows) ? rows : []; })
-      .catch(function(err){ console.error('Seed non chargé :', err); seed = []; });
+      .then(function(rows){ seed = Array.isArray(rows) ? rows : []; seedError = null; })
+      .catch(function(err){
+        console.error('Seed non chargé :', err);
+        seed = [];
+        seedError = (location.protocol === 'file:')
+          ? "La page a été ouverte directement (file://). Lancez un petit serveur — dans le dossier du projet : « python -m http.server 4173 » puis ouvrez http://localhost:4173"
+          : "Impossible de charger data/sequences.json (" + err.message + ").";
+      });
     return ready;
   }
+  function seedStatus(){ return { count: seed.length, error: seedError }; }
 
   /* ---------------- helpers ---------------- */
   function norm(s){ return (s||'').toString().toLowerCase().replace(/\s+/g,' ').trim(); }
@@ -224,7 +232,7 @@ const Store = (function(){
   function resetLocal(){ local = { submissions: [], overrides: {} }; saveLocal(); }
 
   return {
-    init: init,
+    init: init, seedStatus: seedStatus,
     listPublished: listPublished, submit: submit, byTrackingCode: byTrackingCode,
     listAll: listAll, findById: findById, patch: patch, setStatus: setStatus,
     addRevision: addRevision, restoreRevision: restoreRevision,

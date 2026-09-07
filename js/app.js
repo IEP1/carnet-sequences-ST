@@ -25,7 +25,7 @@ const app = {
     const match=this.findProgrammeMatch(cycle, theme.obj);
     return {
       cycle, theme: theme.t,
-      teacherName: Pseudonym.current(), contactEmail:'', school:'', niveauClasse:'', nbEleves:'',
+      teacherName: Pseudonym.current(), contactEmail:'', niveauClasse:'',
       domaineSocle: match ? [...match.comp.domainesSocle] : [], domaineEnseignement:DOMAINE_ENSEIGNEMENT_PAR_CYCLE[cycle]||'Sciences et technologie', composante: match ? match.comp.nom : '',
       attendu: theme.obj, objectif:'', vocabulaire:'', prerequis:'', materiel:'', evaluation:'',
       nbSeances:3, seanceTitles:['','',''], currentSeanceIndex:0,
@@ -152,7 +152,7 @@ const app = {
   diffSequences(o, f){
     if(!o || !f) return [];
     const diffs=[];
-    const fieldLabels={teacherName:"Pseudonyme", school:"École", niveauClasse:"Niveau / Classe", nbEleves:"Nb élèves", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
+    const fieldLabels={teacherName:"Pseudonyme", niveauClasse:"Niveau / Classe", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
     Object.keys(fieldLabels).forEach(k=>{
       const before=o[k]===undefined?'':String(o[k]), after=f[k]===undefined?'':String(f[k]);
       if(before!==after) diffs.push({label:fieldLabels[k], before, after});
@@ -177,48 +177,6 @@ const app = {
       });
     });
     return diffs;
-  },
-
-  triggerImport(){ document.getElementById('import-input').click(); },
-  handleImportFile(file){
-    if(!file) return;
-    const name=(file.name||'').toLowerCase();
-    const isZip = name.endsWith('.zip') || file.type==='application/zip' || file.type==='application/x-zip-compressed';
-    if(isZip){
-      const r=new FileReader();
-      r.onload=(evt)=>{
-        try{
-          const files=unzipStored(new Uint8Array(evt.target.result));
-          const jsonFile=files.find(f=>f.name.toLowerCase().endsWith('.json'));
-          if(!jsonFile) throw new Error("aucun fichier .json dans l'archive");
-          this.loadSequenceObject(JSON.parse(new TextDecoder().decode(jsonFile.data)));
-        }catch(e){ alert("Impossible de lire cette archive : "+e.message); }
-      };
-      r.readAsArrayBuffer(file);
-      return;
-    }
-    const reader=new FileReader();
-    reader.onload=(evt)=>{
-      try{ this.loadSequenceObject(JSON.parse(evt.target.result)); }
-      catch(e){ alert("Impossible de lire ce fichier : "+e.message); }
-    };
-    reader.readAsText(file);
-  },
-  loadSequenceObject(data){
-    if(!data || !data.cycle || !data.theme || !data.seances){ alert("Ce fichier ne ressemble pas à une séquence valide."); return; }
-    const idx=THEMES[data.cycle] ? THEMES[data.cycle].findIndex(t=>t.t===data.theme) : -1;
-    this.state.theme = idx>-1 ? THEMES[data.cycle][idx] : {t:data.theme, obj:data.attendu||'', cat:'', ex:''};
-    this.state.cycle = data.cycle;
-    this.state.form = data;
-    this.state.isModification = false;
-    this.state.originalSnapshot = null;
-    this.state.modificationSource = data._modificationInfo
-      ? {teacherName: data._modificationInfo.sequenceOriginale, status: data._modificationInfo.statutOriginal}
-      : null;
-    this.state.hasDownloaded=false;
-    this.state.pendingDraft=null;
-    if(typeof this.state.form.currentSeanceIndex !== 'number') this.state.form.currentSeanceIndex=0;
-    this.setView('sequence');
   },
 
   markDirty(){ this.state.hasDownloaded=false; this.persistDraft(); },
@@ -361,8 +319,7 @@ const app = {
     body+=this.docxPara(CYCLE_LABEL[e.cycle]||e.cycle, {italic:true, color:'5C7A80', spacingAfter:200});
 
     body+=this.docxTable([
-      [this.docxCell("Enseignant·e",{bold:true,width:2450,shade:'EFEBD8'}), this.docxCell(e.teacherName,{width:2916}), this.docxCell("École",{bold:true,width:1800,shade:'EFEBD8'}), this.docxCell(e.school,{width:3300})],
-      [this.docxCell("Niveau / Classe",{bold:true,width:2450,shade:'EFEBD8'}), this.docxCell(e.niveauClasse,{width:2916}), this.docxCell("Nb élèves",{bold:true,width:1800,shade:'EFEBD8'}), this.docxCell(e.nbEleves,{width:3300})],
+      [this.docxCell("Auteur·e",{bold:true,width:2450,shade:'EFEBD8'}), this.docxCell(e.teacherName,{width:2916}), this.docxCell("Niveau / Classe",{bold:true,width:1800,shade:'EFEBD8'}), this.docxCell(e.niveauClasse||'—',{width:3300})],
       [this.docxCell("Domaines du socle",{bold:true,width:2450,shade:'EFEBD8'}), this.docxCell((e.domaineSocle||[]).join(', ')||'—',{width:8016})],
       [this.docxCell("Domaine d'enseignement",{bold:true,width:2450,shade:'EFEBD8'}), this.docxCell(e.domaineEnseignement,{width:2916}), this.docxCell("Composante",{bold:true,width:1800,shade:'EFEBD8'}), this.docxCell(e.composante,{width:3300})],
     ]);
@@ -482,8 +439,7 @@ const app = {
       <h2 style="margin-bottom:2px;">${this.esc(e.theme)}</h2>
       <p style="color:var(--ink-soft);margin-top:0;">${CYCLE_LABEL[e.cycle]||e.cycle}</p>
       <table>
-        <tr><th>Enseignant·e</th><td>${this.esc(e.teacherName)}</td><th>École</th><td>${this.esc(e.school)}</td></tr>
-        <tr><th>Niveau / Classe</th><td>${this.esc(e.niveauClasse)}</td><th>Nb élèves</th><td>${this.esc(e.nbEleves)}</td></tr>
+        <tr><th>Auteur·e</th><td>${this.esc(e.teacherName)}</td><th>Niveau / Classe</th><td>${this.esc(e.niveauClasse)||'—'}</td></tr>
         <tr><th>Domaines du socle</th><td colspan="3">${this.esc((e.domaineSocle||[]).join(', '))||'—'}</td></tr>
         <tr><th>Domaine d'enseignement</th><td>${this.esc(e.domaineEnseignement)}</td><th>Composante</th><td>${this.esc(e.composante)}</td></tr>
       </table>
@@ -560,6 +516,20 @@ const app = {
       node.setAttribute('spellcheck','true');
       node.setAttribute('lang','fr');
     });
+    this.autoGrowAll(el);
+  },
+
+  /* Les zones de texte s'ajustent à leur contenu, sans poignée de redimensionnement. */
+  autoGrow(el){
+    if(!el) return;
+    el.style.height='auto';
+    el.style.height=(el.scrollHeight+2)+'px';
+  },
+  autoGrowAll(root){
+    (root||document).querySelectorAll('textarea').forEach(t=>{
+      this.autoGrow(t);
+      t.addEventListener('input', ()=>this.autoGrow(t));
+    });
   },
 
   renderTopbar(){
@@ -569,7 +539,7 @@ const app = {
         <div class="mark">S·T</div>
         <div><div class="title">Carnet de séquences</div><div class="sub">Sciences et technologie — Cycles 1, 2, 3 — Nouvelle-Calédonie</div></div>
       </div>
-      <button class="import-link" onclick="app.triggerImport()">📂 Reprendre un travail (.json ou .zip)</button>
+      <a class="import-link" href="admin.html" title="Espace réservé au conseiller pédagogique">Espace conseiller →</a>
     </div>`;
   },
 
@@ -615,9 +585,13 @@ const app = {
         <button class="btn btn-ghost" onclick="app.discardDraft()">Ignorer</button>
       </div>
     </div>` : '';
+    const seedErr=(typeof Store!=='undefined' && Store.seedStatus) ? Store.seedStatus().error : null;
+    const errBanner = seedErr ? `<div class="draft-banner" style="background:var(--danger-soft);border-color:var(--danger);">
+      <div class="draft-banner-txt"><strong>Les séquences déjà publiées ne s'affichent pas</strong><span>${this.esc(seedErr)}</span></div></div>` : '';
     return `
+    ${errBanner}
     ${draftBanner}
-    <p style="max-width:660px;color:var(--ink-soft);font-size:14.5px;">Choisissez un cycle puis une séquence. Votre travail est enregistré automatiquement dans ce navigateur au fur et à mesure. À la fin, vous pourrez télécharger votre travail en PDF/Word et l'envoyer par email.</p>
+    <p style="max-width:660px;color:var(--ink-soft);font-size:14.5px;">Choisissez un cycle puis une séquence. Votre travail est enregistré automatiquement dans ce navigateur au fur et à mesure. À la fin, vous pourrez le télécharger en PDF / Word et l'envoyer au conseiller pour validation.</p>
     <div class="tabs">${tabs}</div>
     <div class="panel"><div class="theme-grid">${cards}</div></div>`;
   },
@@ -648,11 +622,7 @@ const app = {
         </div>
       </div>
 
-      <div class="row3">
-        <div class="field"><label>École <span class="hint">facultatif</span></label><input type="text" id="f-school" value="${this.esc(f.school)}"></div>
-        <div class="field"><label>Niveau / Classe</label><input type="text" id="f-niveauClasse" placeholder="ex. CE2" value="${this.esc(f.niveauClasse)}"></div>
-        <div class="field"><label>Nombre d'élèves</label><input type="text" id="f-nbEleves" value="${this.esc(f.nbEleves)}"></div>
-      </div>
+      <div class="field" style="max-width:280px;"><label>Niveau / Classe <span class="hint">facultatif — ex. CE2, GS/CP</span></label><input type="text" id="f-niveauClasse" placeholder="ex. CE2" value="${this.esc(f.niveauClasse)}"></div>
 
       <div class="field"><label>Domaines du socle concernés <span class="hint">Cochées automatiquement selon la composante choisie ci-dessous — modifiables</span></label><div class="checks">${socleChecks}</div></div>
       <div class="row2">
@@ -885,8 +855,8 @@ const app = {
       const bind=(id,field)=>{ const el=document.getElementById(id); if(el) el.oninput=()=>this.updateForm(field, el.value); };
       const pseudoEl=document.getElementById('f-teacherName');
       if(pseudoEl) pseudoEl.oninput=()=>this.setPseudo(pseudoEl.value);
-      bind('f-contactEmail','contactEmail'); bind('f-school','school'); bind('f-niveauClasse','niveauClasse');
-      bind('f-nbEleves','nbEleves'); bind('f-domaineEnseignement','domaineEnseignement');
+      bind('f-contactEmail','contactEmail'); bind('f-niveauClasse','niveauClasse');
+      bind('f-domaineEnseignement','domaineEnseignement');
       bind('f-objectif','objectif');
       bind('f-vocabulaire','vocabulaire'); bind('f-prerequis','prerequis'); bind('f-materiel','materiel'); bind('f-evaluation','evaluation');
       const i=f.currentSeanceIndex||0;
@@ -902,14 +872,6 @@ const app = {
    La zone admin (admin.html) charge ce fichier pour réutiliser ses fonctions
    d'affichage / export, mais ne doit pas lancer l'application enseignant. */
 if(document.getElementById('app')){
-
-  var importInput=document.getElementById('import-input');
-  if(importInput){
-    importInput.addEventListener('change', function(e){
-      if(e.target.files && e.target.files[0]) app.handleImportFile(e.target.files[0]);
-      e.target.value='';
-    });
-  }
 
   window.addEventListener('beforeunload', function(e){
     // Le brouillon est déjà sauvegardé en local ; on prévient tout de même

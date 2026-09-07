@@ -52,7 +52,7 @@
   input[type=text], input[type=number], textarea, select{
     width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-family:'Inter',sans-serif;font-size:14.5px;color:var(--ink);
   }
-  textarea{min-height:150px;resize:vertical;}
+  textarea{min-height:2.7em;resize:none;overflow:hidden;line-height:1.45;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
   @media(max-width:680px){.row2,.row3{grid-template-columns:1fr;}}
