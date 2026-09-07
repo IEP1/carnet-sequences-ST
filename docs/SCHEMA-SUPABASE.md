@@ -45,8 +45,7 @@ Retenu : **pseudonyme public + e-mail privé facultatif**, sans compte obligatoi
 | `contact_email` | text (nullable) | **privé** — jamais renvoyé au public |
 | `content` | jsonb | l'objet séquence complet (fiche + `seances[]`), format actuel inchangé |
 | `admin_note` | text (nullable) | note interne du conseiller |
-| `reject_reason` | text (nullable) | motif, consultable par l'enseignant via son code de suivi |
-| `tracking_code` | text | court, ex. `SEQ-7F3K` — donné à l'enseignant à la soumission |
+| `reject_reason` | text (nullable) | motif du refus (interne ; communiqué à l'enseignant si comptes) |
 | `source_id` | uuid (nullable, FK → sequences) | si c'est une proposition de modification |
 | `submitted_at` / `updated_at` / `published_at` | timestamptz | |
 
@@ -70,7 +69,6 @@ Liste blanche d'e-mails autorisés à accéder à la zone admin (le conseiller, 
     colonnes privées (`contact_email`, `admin_note`, `reject_reason`) → exposer une
     **vue** `public_sequences` restreinte plutôt que la table.
   - **insertion** autorisée avec `status = 'soumis'` (+ anti-spam, voir plus bas).
-  - lecture d'une ligne par `tracking_code` (fonction RPC dédiée) pour suivre l'état.
 - Admin (connecté, e-mail dans `admin_users`) : accès complet.
 
 ## Faut-il une base de données ? (décision)
@@ -156,17 +154,18 @@ La version d'origine de l'enseignant est **toujours** conservée dans l'historiq
 - Modération **a priori** de fait : rien n'est public avant validation manuelle.
 - Éventuellement un captcha léger (hCaptcha/Turnstile) seulement à la soumission.
 
-## Côté client — évolution de `js/storage.js`
+## Côté client — `js/store.js` existe déjà
 
-Ajouter, à côté de `Draft`, un module `Store` :
+Le module `Store` est en place (aujourd'hui : seed + localStorage). Le branchement
+Supabase = réécrire l'**intérieur** de ces fonctions, l'interface ne bouge pas :
 
 ```
-Store.listPublished({cycle})   -> remplace EXISTING_SEQUENCES sur l'accueil
-Store.get(id)
-Store.submit(content)          -> insert status='soumis', renvoie tracking_code
-Store.bySuivi(code)            -> état d'une soumission
-// admin (après login) :
-Admin.list(filters) / Admin.update(id, patch) / Admin.publish(id) / Admin.remove(id)
+Store.init()                       -> charge les séquences publiées
+Store.listPublished({cycle})       -> pour l'accueil (EXISTING_SEQUENCES)
+Store.submit({data, contactEmail, sourceId})  -> insert status='soumis'
+// zone admin (après auth) :
+Store.listAll() / findById(id) / patch(id, changes) / setStatus(id, status)
+Store.addRevision / restoreRevision / duplicate / hardDelete / duplicatesOf / stats
 ```
 
 `js/app.js` ne change presque pas : il manipule toujours `state.form`.

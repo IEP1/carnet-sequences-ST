@@ -590,7 +590,7 @@ const app = {
     <div class="tabs">${tabs}</div>
     <div class="panel"><div class="theme-grid">${cards}</div></div>
     <p style="text-align:center;margin-top:26px;font-size:12.5px;">
-      <a href="admin.html" style="color:var(--ink-soft);">Vous êtes le conseiller pédagogique ? Accéder à l'espace de validation →</a>
+      <a href="admin.html" style="color:var(--ink-soft);">Espace conseiller →</a>
     </p>`;
   },
 
@@ -833,13 +833,8 @@ const app = {
     return `<div class="panel" style="text-align:center;">
       <div style="font-size:44px;line-height:1;margin-bottom:6px;">📬</div>
       <h2 style="margin-top:0;">Séquence envoyée&nbsp;!</h2>
-      <p style="color:var(--ink-soft);max-width:520px;margin:0 auto 18px;">Elle est arrivée dans l'espace de validation du conseiller pédagogique. Après relecture, elle sera publiée sur le site.</p>
-      <div class="stamp-box" style="max-width:360px;margin:0 auto 20px;text-align:center;">
-        <span class="eyebrow">Votre code de suivi</span>
-        <h3 style="letter-spacing:2px;font-size:24px;margin:6px 0;">${this.esc(rec.trackingCode||'—')}</h3>
-        <p>Notez-le : il permettra de retrouver l'état de votre séquence.</p>
-      </div>
-      <p style="font-size:13.5px;">Pseudonyme : <strong>${this.esc(f.teacherName||'—')}</strong>${f.contactEmail?` · contact transmis (privé) : <strong>${this.esc(f.contactEmail)}</strong>`:''}</p>
+      <p style="color:var(--ink-soft);max-width:520px;margin:0 auto 18px;">Elle est arrivée dans l'espace de validation du conseiller pédagogique. Après relecture (et éventuelles retouches), elle sera publiée sur le site.${f.contactEmail?" Vous serez recontacté·e si besoin.":""}</p>
+      <p style="font-size:13.5px;margin-bottom:22px;">Publiée sous le pseudonyme : <strong>${this.esc(f.teacherName||'—')}</strong></p>
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-ghost" onclick="app.downloadDocx(app.state.submitted.data)">📝 Télécharger ma copie (Word)</button>
         <button class="btn btn-primary" onclick="app.restart()">Nouvelle séquence</button>

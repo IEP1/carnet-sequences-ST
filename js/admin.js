@@ -60,7 +60,7 @@ const admin = {
   setStatusTo(status){
     const id=this.state.selectedId;
     if(status==='rejete'){
-      const why=prompt("Motif du refus (visible par l'enseignant via son code de suivi) :", (this.current()||{}).rejectReason||'');
+      const why=prompt("Motif du refus (note interne pour l'instant ; sera communiqué à l'enseignant quand les comptes existeront) :", (this.current()||{}).rejectReason||'');
       if(why===null) return;
       Store.setStatus(id,'rejete',{ rejectReason: why });
     } else {
@@ -276,7 +276,6 @@ const admin = {
 
     const chips=`<div class="detail-chips">
       <span class="chip">${Store.originLabel(r)}</span>
-      ${r.trackingCode?`<span class="chip">Suivi ${this.esc(r.trackingCode)}</span>`:''}
       ${r.publishedAt?`<span class="chip">Publiée le ${new Date(r.publishedAt).toLocaleDateString('fr-FR')}</span>`:''}
       <span class="chip">Modifiée ${r.updatedAt?new Date(r.updatedAt).toLocaleDateString('fr-FR'):'—'}</span>
     </div>`;
@@ -286,7 +285,7 @@ const admin = {
         <label>Pseudonyme affiché<input type="text" value="${this.esc(r.data.teacherName||'')}" onchange="admin.saveDisplay('teacherName',this.value)"></label>
         <label>Contact (privé, jamais affiché)<input type="text" value="${this.esc(r.contactEmail||r.data.contactEmail||'')}" onchange="admin.saveDisplay('contactEmail',this.value)" placeholder="—"></label>
       </div>
-      ${r.rejectReason?`<p class="reject-note">Motif de refus transmis : ${this.esc(r.rejectReason)}</p>`:''}
+      ${r.rejectReason?`<p class="reject-note">Motif de refus : ${this.esc(r.rejectReason)}</p>`:''}
     </div>`;
 
     const dupBlock=dups.length?`<div class="admin-block warn"><h3>⚠ Doublons possibles — même cycle et même thème</h3>

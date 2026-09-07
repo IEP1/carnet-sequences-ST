@@ -11,7 +11,7 @@
 
    Forme d'un enregistrement :
      { id, status, origin, data,
-       contactEmail, adminNote, rejectReason, trackingCode,
+       contactEmail, adminNote, rejectReason,
        sourceId, createdAt, updatedAt, publishedAt, revisions:[{label,data,at}] }
 
    status : soumis · en_revue · publie · masque · rejete · supprime
@@ -19,7 +19,7 @@
    ============================================================ */
 const Store = (function(){
   const LS_KEY   = 'cds:store:v1';
-  const SEED_URL = 'data/sequences.json?v=20260907e';
+  const SEED_URL = 'data/sequences.json?v=20260908a';
 
   const PUBLISHED = ['publie','existante','assistee','ia'];
 
@@ -112,13 +112,6 @@ const Store = (function(){
     return rows;
   }
 
-  function makeCode(){
-    const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let c = 'SEQ-';
-    for(let i=0;i<4;i++) c += alpha[Math.floor(Math.random()*alpha.length)];
-    return c;
-  }
-
   /* Soumission enseignant. payload = { data, contactEmail?, sourceId? } */
   function submit(payload){
     const data = payload.data || payload;
@@ -131,7 +124,6 @@ const Store = (function(){
       data: data,
       contactEmail: payload.contactEmail || data.contactEmail || '',
       adminNote: '', rejectReason: '',
-      trackingCode: makeCode(),
       sourceId: payload.sourceId || null,
       createdAt: t, updatedAt: t, publishedAt: null,
       revisions: [{ label: 'Version enseignant', data: clone(data), at: t }]
@@ -139,12 +131,6 @@ const Store = (function(){
     local.submissions.push(rec);
     saveLocal();
     return rec;
-  }
-
-  /* Suivi par code (côté enseignant). */
-  function byTrackingCode(code){
-    code = (code||'').trim().toUpperCase();
-    return resolved().filter(function(r){ return (r.trackingCode||'').toUpperCase()===code; })[0] || null;
   }
 
   /* ---------------- API zone admin ---------------- */
@@ -233,7 +219,7 @@ const Store = (function(){
 
   return {
     init: init, seedStatus: seedStatus,
-    listPublished: listPublished, submit: submit, byTrackingCode: byTrackingCode,
+    listPublished: listPublished, submit: submit,
     listAll: listAll, findById: findById, patch: patch, setStatus: setStatus,
     addRevision: addRevision, restoreRevision: restoreRevision,
     duplicate: duplicate, hardDelete: hardDelete, duplicatesOf: duplicatesOf,

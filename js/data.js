@@ -197,7 +197,3 @@ const STEP_HELP = {
     role: ["Proposer une situation nouvelle et porteuse de sens", "Accompagner sans donner la réponse", "Valoriser réussites et progrès"]
   }
 };
-/* Adresse qui recevra les séquences par email, et étiquette conseillée pour le filtre Gmail */
-const CONSEILLER_EMAIL = "vincent.renais@gouv.nc";
-const SUBJECT_TAG = "[SEQ-ST]";
-const SUBJECT_TAG_MODIF = "[SEQ-ST-MODIF]";
