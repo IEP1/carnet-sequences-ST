@@ -1,0 +1,21 @@
+# Sauvegardes / temporaires
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Dépendances éventuelles (aucune pour l'instant)
+node_modules/
+
+# Secrets — ne jamais committer les clés Supabase de service
+.env
+.env.*
+!.env.example
+
+# Déploiement
+.netlify/
+dist/
+
+# Documents sources (≈190 Mo de PDF/PPTX de préparation) — gardés en local,
+# hors dépôt. Retirer cette ligne si l'on veut les versionner (via Git LFS de préférence).
+Parcours science/
