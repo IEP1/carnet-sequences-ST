@@ -73,24 +73,72 @@ Liste blanche d'e-mails autorisés à accéder à la zone admin (le conseiller, 
   - lecture d'une ligne par `tracking_code` (fonction RPC dédiée) pour suivre l'état.
 - Admin (connecté, e-mail dans `admin_users`) : accès complet.
 
-## Zone admin — fonctions envisagées
+## Faut-il une base de données ? (décision)
 
-- **File des soumissions** : filtre par statut / cycle / thème / date, recherche plein
-  texte, tri.
+Besoin central : **n'importe quel enseignant, sans compte, soumet une séquence qui
+arrive directement dans la zone privée du conseiller.**
+
+Un site statique hébergé sur GitHub **ne peut rien réécrire dans GitHub**. Sans
+backend, la soumission repasse forcément par « l'enseignant exporte un fichier → il
+te l'envoie → tu l'ajoutes à la main » = l'ancien circuit qu'on abandonne.
+
+| | Tout dans GitHub | **Supabase (retenu)** |
+|---|---|---|
+| Soumission anonyme directe | ✗ (formulaire tiers / envoi manuel) | ✓ écriture directe en table (clé anon + RLS) |
+| Vraie zone admin (publier/masquer/éditer en direct) | ✗ (édition de fichiers + commits) | ✓ |
+| Changement de statut | 1 commit + 1 build | instantané (une colonne) |
+| Déploiement quand on publie une séquence | à chaque fois | **jamais** (le contenu n'est plus dans le repo) |
+| Historique / doublons / recherche | manuel / limité | requêtes SQL |
+| Coût | 0 | 0 (plan gratuit large ; pause après 7 j **sans aucune** activité) |
+| Verrouillage | aucun | aucun (bouton export JSON + seed dans git) |
+
+**Retenu : hybride.** GitHub = code + seed (`data/sequences.json`, sauvegarde et
+référence). Supabase = séquences vivantes + zone admin + révisions. Réversible à tout
+moment (export JSON, le seed reste versionné).
+
+## Zone admin — fonctions retenues
+
+- **File des soumissions** : filtre par statut / cycle / thème / date, recherche, tri.
 - **Aperçu + édition en place** (réutilise le formulaire et le rendu existants).
-- Actions : Publier · Renvoyer à l'enseignant avec un motif · Rejeter (motif) ·
-  Supprimer · Dupliquer · Retirer temporairement une séquence publiée.
-- **Améliorer avec l'IA** : un clic envoie le contenu à un LLM avec une consigne
-  pédagogique ; retour d'une version proposée que le conseiller compare (diff déjà
-  codé) et accepte ou non. ⚠️ nécessite une **fonction serveur** (clé API jamais dans
-  le navigateur) — Netlify Function / Edge Function Supabase.
-- **Métadonnées d'affichage** : éditer le nom affiché, masquer l'école, marquer
-  « modèle » / « coup de cœur », tags.
-- **Tableau de bord** : nb de séquences par cycle/thème, soumissions par mois, thèmes
-  encore sans aucune séquence (pour orienter les enseignants).
+- **Liste des séquences + changement de statut** : `publie` · `masque` (retiré de la
+  publication **sans suppression**) · `supprime`.
+- Actions : Publier · Masquer · Supprimer · Renvoyer à l'enseignant avec un motif ·
+  Dupliquer.
+- **Historique** : toutes les versions proposées d'une séquence sont conservées
+  (`sequence_revisions`), consultables et restaurables.
 - **Détection de doublons** (même thème + pseudo, ou contenu très proche).
-- **Export global** (toutes les séquences en JSON / classeur) pour sauvegarde.
-- **Journal** des changements de statut (quoi / quand).
+- **Métadonnées d'affichage** : nom affiché, masquer l'école, marquer « modèle » /
+  « coup de cœur », tags.
+- **Tableau de bord** : nb par cycle/thème, soumissions par mois, thèmes sans séquence.
+- **Export global** (toutes les séquences en JSON) pour sauvegarde.
+- **Journal** des changements de statut.
+
+## « Améliorer avec l'IA » — sans clé API (aller-retour manuel)
+
+Pas de clé API disponible → aucun appel automatique. À la place :
+
+1. Bouton **« Préparer une demande d'aide IA »** → génère un texte à copier :
+   un **gabarit de prompt** (consigne pédagogique claire + rôle) + les **données de
+   la séquence** + le **format de réponse imposé** (bloc ```json``` de la même
+   structure que `data/sequences.json`, clés identiques, rien d'autre).
+2. Le conseiller colle ce texte dans n'importe quelle IA → réponse au format imposé.
+3. Bouton **« Coller la réponse IA »** → le site **parse et valide** le JSON, affiche
+   le **diff** avant/après (déjà codé), et sur acceptation → nouvelle révision /
+   séquence validée.
+4. JSON malformé → message clair, rien n'est modifié.
+
+Gabarit de prompt + schéma de réponse : à figer dans `docs/PROMPT-IA.md` (à créer).
+Réalisable tout de suite, hors Supabase.
+
+## Modification proposée par un enseignant — validation
+
+Un enseignant modifie une séquence publiée → crée une **soumission liée**
+(`source_id` = l'originale), `status = 'soumis'`. À la validation, le conseiller choisit :
+
+- **Remplacer** : la nouvelle version remplace l'ancienne (ancienne → historique).
+- **Publier en parallèle** : les deux restent en ligne (variantes assumées).
+
+La version d'origine de l'enseignant est **toujours** conservée dans l'historique.
 
 ## Idées côté site public (une fois les séquences en base)
 
