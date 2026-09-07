@@ -140,3 +140,13 @@
   .draft-banner-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .draft-banner-actions .btn{padding:9px 18px;}
   .brand[role=button]:focus-visible, .existing-badge:focus-visible{outline:3px solid var(--sky);outline-offset:2px;}
+
+  .identity-box{background:var(--sky-soft);border:1.5px solid var(--sky);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
+  .identity-box .eyebrow{color:var(--sky);}
+  .identity-hint{margin:4px 0 12px;font-size:13px;color:var(--ink-soft);}
+  .identity-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .identity-row input{flex:1;min-width:220px;font-family:'Zilla Slab',serif;font-size:17px;font-weight:600;color:var(--forest-dark);}
+  .identity-btn{padding:10px 16px;border-radius:8px;background:#fff;white-space:nowrap;}
+  .identity-choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .pseudo-chip{border:1.5px solid var(--sky);background:#fff;color:var(--sky);border-radius:16px;padding:5px 11px;font-size:12.5px;font-weight:600;font-family:'Inter',sans-serif;}
+  .pseudo-chip:hover{background:var(--sky);color:#fff;}

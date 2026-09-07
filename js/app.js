@@ -25,7 +25,7 @@ const app = {
     const match=this.findProgrammeMatch(cycle, theme.obj);
     return {
       cycle, theme: theme.t,
-      teacherName:'', school:'', niveauClasse:'', nbEleves:'',
+      teacherName: Pseudonym.current(), contactEmail:'', school:'', niveauClasse:'', nbEleves:'',
       domaineSocle: match ? [...match.comp.domainesSocle] : [], domaineEnseignement:DOMAINE_ENSEIGNEMENT_PAR_CYCLE[cycle]||'Sciences et technologie', composante: match ? match.comp.nom : '',
       attendu: theme.obj, objectif:'', vocabulaire:'', prerequis:'', materiel:'', evaluation:'',
       nbSeances:3, seanceTitles:['','',''], currentSeanceIndex:0,
@@ -129,8 +129,10 @@ const app = {
     const clone=JSON.parse(JSON.stringify(entry.data));
     const original=JSON.parse(JSON.stringify(entry.data));
     clone.currentSeanceIndex=0;
-    if(entry.status==='ia') clone.teacherName='';
+    if(entry.status==='ia' || !clone.teacherName) clone.teacherName=Pseudonym.current();
+    if(clone.contactEmail===undefined) clone.contactEmail='';
     this.state.form=clone;
+    this.state.pseudoOptions=null;
     this.state.originalSnapshot=original;
     this.state.isModification=true;
     this.state.modificationSource={teacherName: entry.status==='ia' ? "la séquence modèle IA" : entry.data.teacherName, status:entry.status};
@@ -144,7 +146,7 @@ const app = {
     const o=this.state.originalSnapshot, f=this.state.form;
     if(!o || !f) return [];
     const diffs=[];
-    const fieldLabels={teacherName:"Nom", school:"École", niveauClasse:"Niveau / Classe", nbEleves:"Nb élèves", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
+    const fieldLabels={teacherName:"Pseudonyme", school:"École", niveauClasse:"Niveau / Classe", nbEleves:"Nb élèves", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
     Object.keys(fieldLabels).forEach(k=>{
       const before=o[k]===undefined?'':String(o[k]), after=f[k]===undefined?'':String(f[k]);
       if(before!==after) diffs.push({label:fieldLabels[k], before, after});
@@ -215,6 +217,22 @@ const app = {
 
   markDirty(){ this.state.hasDownloaded=false; this.persistDraft(); },
   updateForm(field, value){ this.state.form[field]=value; this.markDirty(); },
+
+  /* ---------- pseudonyme (voir js/pseudonym.js) ---------- */
+  setPseudo(val){
+    val=(val||'').trim();
+    this.state.form.teacherName=val;
+    Pseudonym.remember(val);
+    this.markDirty();
+  },
+  rerollPseudo(){
+    const val=Pseudonym.generate();
+    this.state.form.teacherName=val;
+    Pseudonym.remember(val);
+    this.markDirty();
+    this.render();
+  },
+  choosePseudo(val){ this.setPseudo(val); this.render(); },
   toggleSocle(code){
     const f=this.state.form; const i=f.domaineSocle.indexOf(code);
     if(i>-1) f.domaineSocle.splice(i,1); else f.domaineSocle.push(code);
@@ -233,7 +251,7 @@ const app = {
 
   goToSeances(){
     const f=this.state.form;
-    if(!f.teacherName.trim()){ alert("Merci d'indiquer votre nom avant de continuer."); return; }
+    if(!f.teacherName.trim()){ alert("Merci de choisir un pseudonyme (bouton « Un autre » ou saisie libre) avant de continuer."); return; }
     f.seances.forEach((s,i)=>{ s.titre=f.seanceTitles[i]; });
     f.currentSeanceIndex=0;
     this.setView('seances');
@@ -277,7 +295,7 @@ const app = {
     else { this.setView('review'); }
   },
 
-  restart(){ Draft.clear(); this.state.view='home'; this.state.theme=null; this.state.form=null; this.state.hasDownloaded=false; this.state.isModification=false; this.state.originalSnapshot=null; this.state.modificationSource=null; this.state.viewingExisting=null; this.state.pendingDraft=null; this.setView('home'); },
+  restart(){ Draft.clear(); this.state.view='home'; this.state.theme=null; this.state.form=null; this.state.hasDownloaded=false; this.state.isModification=false; this.state.originalSnapshot=null; this.state.modificationSource=null; this.state.viewingExisting=null; this.state.pendingDraft=null; this.state.pseudoOptions=null; this.setView('home'); },
 
   slugify(s){
     return (s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -655,17 +673,35 @@ const app = {
 
   renderSequenceForm(){
     const f=this.state.form, th=this.state.theme;
+    if(!this.state.pseudoOptions) this.state.pseudoOptions=Pseudonym.options(5);
+    const pseudoOptions=this.state.pseudoOptions;
     const socleChecks=DOMAINES_SOCLE.map(([code,label])=>`<label class="check-pill"><input type="checkbox" ${f.domaineSocle.includes(code)?'checked':''} onchange="app.toggleSocle('${code}')"> ${code} — ${label}</label>`).join('');
     return `
     <div class="stamp-box"><span class="eyebrow">Séquence choisie · ${CYCLE_LABEL[f.cycle]}</span><h3>${this.esc(th.t)}</h3><p>${this.esc(th.obj)}</p></div>
     <div class="panel">
       <h2 style="margin-top:0;">Fiche séquence</h2>
-      <div class="row3">
-        <div class="field"><label>Votre nom *</label><input type="text" id="f-teacherName" value="${this.esc(f.teacherName)}"></div>
-        <div class="field"><label>École</label><input type="text" id="f-school" value="${this.esc(f.school)}"></div>
-        <div class="field"><label>Niveau / Classe</label><input type="text" id="f-niveauClasse" placeholder="ex. CE2" value="${this.esc(f.niveauClasse)}"></div>
+
+      <div class="identity-box">
+        <span class="eyebrow">Votre signature</span>
+        <p class="identity-hint">La séquence sera publiée sous ce pseudonyme — pas besoin de donner votre vrai nom.</p>
+        <div class="identity-row">
+          <input type="text" id="f-teacherName" value="${this.esc(f.teacherName)}" aria-label="Pseudonyme">
+          <button type="button" class="btn-ghost identity-btn" onclick="app.rerollPseudo()">🎲 Un autre</button>
+        </div>
+        <div class="identity-choices">
+          ${pseudoOptions.map(p=>`<button type="button" class="pseudo-chip" onclick="app.choosePseudo('${p.replace(/'/g,"\\'")}')">${this.esc(p)}</button>`).join('')}
+        </div>
+        <div class="field" style="margin:12px 0 0;">
+          <label>E-mail de contact <span class="hint">Facultatif — jamais affiché. Sert uniquement à ce que le conseiller puisse vous recontacter.</span></label>
+          <input type="text" id="f-contactEmail" placeholder="prenom.nom@example.nc" value="${this.esc(f.contactEmail||'')}">
+        </div>
       </div>
-      <div class="field"><label>Nombre d'élèves</label><input type="text" id="f-nbEleves" style="max-width:160px;" value="${this.esc(f.nbEleves)}"></div>
+
+      <div class="row3">
+        <div class="field"><label>École <span class="hint">facultatif</span></label><input type="text" id="f-school" value="${this.esc(f.school)}"></div>
+        <div class="field"><label>Niveau / Classe</label><input type="text" id="f-niveauClasse" placeholder="ex. CE2" value="${this.esc(f.niveauClasse)}"></div>
+        <div class="field"><label>Nombre d'élèves</label><input type="text" id="f-nbEleves" value="${this.esc(f.nbEleves)}"></div>
+      </div>
 
       <div class="field"><label>Domaines du socle concernés <span class="hint">Cochées automatiquement selon la composante choisie ci-dessous — modifiables</span></label><div class="checks">${socleChecks}</div></div>
       <div class="row2">
@@ -863,7 +899,9 @@ const app = {
     const f=this.state.form;
     if(f){
       const bind=(id,field)=>{ const el=document.getElementById(id); if(el) el.oninput=()=>this.updateForm(field, el.value); };
-      bind('f-teacherName','teacherName'); bind('f-school','school'); bind('f-niveauClasse','niveauClasse');
+      const pseudoEl=document.getElementById('f-teacherName');
+      if(pseudoEl) pseudoEl.oninput=()=>this.setPseudo(pseudoEl.value);
+      bind('f-contactEmail','contactEmail'); bind('f-school','school'); bind('f-niveauClasse','niveauClasse');
       bind('f-nbEleves','nbEleves'); bind('f-domaineEnseignement','domaineEnseignement');
       bind('f-objectif','objectif');
       bind('f-vocabulaire','vocabulaire'); bind('f-prerequis','prerequis'); bind('f-materiel','materiel'); bind('f-evaluation','evaluation');

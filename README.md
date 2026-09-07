@@ -27,8 +27,12 @@ python -m http.server 4173
 | `js/data.js` | Données de référence : programmes, thèmes, aide par étape, email du conseiller |
 | `js/sequences-modeles.js` | Séquences existantes / modèles (`EXISTING_SEQUENCES`) — *seed*, migrera vers Supabase |
 | `js/zip.js` | Création et lecture d'archives `.zip` (sans dépendance) |
+| `js/pseudonym.js` | Génération des pseudonymes calédoniens (attribution anonyme) |
 | `js/storage.js` | Persistance du brouillon (`localStorage`). **Couche isolée** : c'est ici que Supabase se branchera |
 | `js/app.js` | Logique applicative + rendu |
+
+Les balises `<script>` / `<link>` de `index.html` portent un `?v=AAAAMMJJ` :
+**l'incrémenter à chaque mise en ligne** pour forcer les navigateurs à recharger.
 
 Les scripts sont des scripts classiques (pas de modules ES) : les `const` de premier
 niveau sont partagées entre fichiers. L'ordre de chargement dans `index.html` compte.
@@ -46,9 +50,10 @@ Site statique → GitHub Pages ou Netlify, sans étape de build. Servir la racin
 ## Feuille de route
 
 1. **Fait** — découpage en modules, `git`, sauvegarde locale, corrections (import `.zip`,
-   `mailto:` générique, correspondance tolérante des attendus).
-2. **À décider** — modèle d'authentification, workflow de validation, données personnelles
-   (voir `docs/SCHEMA-SUPABASE.md`).
-3. Branchement Supabase : Auth + version Supabase de `js/storage.js`, migration de
-   `EXISTING_SEQUENCES` en table.
-4. Mise en ligne (Netlify / GitHub Pages) + variables d'environnement.
+   `mailto:` générique, correspondance tolérante des attendus), pseudonymes anonymes.
+2. **Vision cadrée** — voir `docs/SCHEMA-SUPABASE.md` (site public → soumission → zone
+   admin privée → validation → publication ; plus de circuit e-mail).
+3. Branchement Supabase : table `sequences`, vue publique, zone admin, version Supabase
+   de `js/storage.js`, migration de `EXISTING_SEQUENCES`.
+4. Fonction serveur (Netlify / Edge) pour « Améliorer avec l'IA » (clé API hors navigateur).
+5. Mise en ligne + variables d'environnement.
