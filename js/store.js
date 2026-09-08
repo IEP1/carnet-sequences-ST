@@ -19,12 +19,12 @@
    ============================================================ */
 const Store = (function(){
   const LS_KEY   = 'cds:store:v1';
-  const SEED_URL = 'data/sequences.json?v=20260908b';
+  const SEED_URL = 'data/sequences.json?v=20260908c';
 
   const PUBLISHED = ['publie','existante','assistee','ia'];
 
   let seed  = [];
-  let local = { submissions: [], overrides: {} };
+  let local = { submissions: [], overrides: {}, suggestions: [] };
   let ready = null;
   let seedError = null;   // message si le seed n'a pas pu être chargé
 
@@ -36,7 +36,8 @@ const Store = (function(){
         const o = JSON.parse(raw) || {};
         local = {
           submissions: Array.isArray(o.submissions) ? o.submissions : [],
-          overrides:  (o.overrides && typeof o.overrides === 'object') ? o.overrides : {}
+          overrides:  (o.overrides && typeof o.overrides === 'object') ? o.overrides : {},
+          suggestions: Array.isArray(o.suggestions) ? o.suggestions : []
         };
       }
     }catch(e){ /* mode privé / corrompu : on repart vide */ }
@@ -210,12 +211,38 @@ const Store = (function(){
     if(o.local && typeof o.local === 'object'){
       local = {
         submissions: Array.isArray(o.local.submissions) ? o.local.submissions : [],
-        overrides: (o.local.overrides && typeof o.local.overrides === 'object') ? o.local.overrides : {}
+        overrides: (o.local.overrides && typeof o.local.overrides === 'object') ? o.local.overrides : {},
+        suggestions: Array.isArray(o.local.suggestions) ? o.local.suggestions : []
       };
       saveLocal();
     }
   }
-  function resetLocal(){ local = { submissions: [], overrides: {} }; saveLocal(); }
+  function resetLocal(){ local = { submissions: [], overrides: {}, suggestions: [] }; saveLocal(); }
+
+  /* ---------------- suggestions d'amélioration du site ---------------- */
+  function submitSuggestion(payload){
+    const t = nowISO();
+    const rec = {
+      id: 'sug-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      text: (payload.text || '').trim(),
+      author: (payload.author || '').trim(),
+      status: 'nouveau',          // nouveau · traitee · ecartee
+      createdAt: t, updatedAt: t
+    };
+    local.suggestions.push(rec);
+    saveLocal();
+    return rec;
+  }
+  function listSuggestions(){ return local.suggestions.slice().reverse(); }
+  function patchSuggestion(id, changes){
+    const s = local.suggestions.filter(function(x){ return x.id===id; })[0];
+    if(s){ Object.assign(s, changes, { updatedAt: nowISO() }); saveLocal(); }
+    return s || null;
+  }
+  function deleteSuggestion(id){
+    local.suggestions = local.suggestions.filter(function(x){ return x.id!==id; });
+    saveLocal();
+  }
 
   return {
     init: init, seedStatus: seedStatus,
@@ -224,6 +251,8 @@ const Store = (function(){
     addRevision: addRevision, restoreRevision: restoreRevision,
     duplicate: duplicate, hardDelete: hardDelete, duplicatesOf: duplicatesOf,
     bucket: bucket, BUCKET_LABEL: BUCKET_LABEL, originLabel: originLabel, stats: stats,
+    submitSuggestion: submitSuggestion, listSuggestions: listSuggestions,
+    patchSuggestion: patchSuggestion, deleteSuggestion: deleteSuggestion,
     exportAll: exportAll, importLocal: importLocal, resetLocal: resetLocal
   };
 })();

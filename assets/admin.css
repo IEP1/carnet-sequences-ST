@@ -1,6 +1,7 @@
 /* Zone de validation — s'appuie sur les variables de assets/styles.css */
 
 .admin-wrap{width:92%;max-width:1180px;margin:0 auto;padding:26px 0 90px;}
+.admin-wrap + .admin-wrap{padding-top:0;}
 .admin-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
   margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--line);}
 .admin-top h1{font-family:'Zilla Slab',serif;font-size:22px;margin:0;color:var(--forest-dark);display:flex;align-items:center;gap:10px;}
@@ -15,6 +16,23 @@
 .admin-gate .eyebrow{color:var(--ochre);}
 .admin-gate h1{font-family:'Zilla Slab',serif;font-size:22px;color:var(--forest-dark);margin:8px 0;}
 .admin-gate input{margin:16px 0;text-align:center;letter-spacing:3px;font-size:16px;}
+
+/* ---- navigation de section ---- */
+.section-nav{display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid var(--line);}
+.section-btn{background:none;border:none;border-bottom:3px solid transparent;padding:8px 4px 12px;margin-bottom:-2px;
+  font-family:'Zilla Slab',serif;font-weight:700;font-size:17px;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;gap:6px;}
+.section-btn.active{color:var(--forest-dark);border-bottom-color:var(--forest);}
+.sn-badge{background:var(--danger);color:#fff;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;
+  border-radius:10px;padding:1px 7px;}
+
+/* ---- suggestions ---- */
+.sug-list{display:flex;flex-direction:column;gap:12px;}
+.sug-card{background:var(--paper-card);border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
+.sug-card.ecartee{opacity:.6;}
+.sug-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.sug-meta{font-size:12px;color:var(--ink-soft);}
+.sug-text{margin:0 0 10px;font-size:14px;white-space:pre-wrap;}
+.sug-actions{display:flex;gap:6px;flex-wrap:wrap;}
 
 /* ---- tableau de bord ---- */
 .dash{display:flex;gap:0;flex-wrap:wrap;background:var(--paper-card);border:1.5px solid var(--line);

@@ -120,9 +120,17 @@ const app = {
     });
     return out;
   },
-  viewExisting(index){
-    this.state.viewingExisting=index;
+  viewExisting(idxOrList, pos){
+    const list = Array.isArray(idxOrList) ? idxOrList : [idxOrList];
+    this.state.viewingGroup = list;
+    this.state.viewingExisting = list[pos||0];
     this.setView('presentation');
+  },
+  switchExisting(pos){
+    const list = this.state.viewingGroup || [this.state.viewingExisting];
+    this.state.viewingExisting = list[pos] !== undefined ? list[pos] : list[0];
+    this.render();
+    window.scrollTo({top:0,behavior:'smooth'});
   },
   proposeModification(index){
     const entry=EXISTING_SEQUENCES[index];
@@ -259,7 +267,7 @@ const app = {
     else { this.setView('review'); }
   },
 
-  restart(){ Draft.clear(); this.state.view='home'; this.state.theme=null; this.state.form=null; this.state.hasDownloaded=false; this.state.isModification=false; this.state.originalSnapshot=null; this.state.modificationSource=null; this.state.viewingExisting=null; this.state.pendingDraft=null; this.state.pseudoOptions=null; this.setView('home'); },
+  restart(){ Draft.clear(); this.state.view='home'; this.state.theme=null; this.state.form=null; this.state.hasDownloaded=false; this.state.isModification=false; this.state.originalSnapshot=null; this.state.modificationSource=null; this.state.viewingExisting=null; this.state.viewingGroup=null; this.state.pendingDraft=null; this.state.pseudoOptions=null; this.setView('home'); },
 
   slugify(s){
     return (s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -509,6 +517,7 @@ const app = {
     else if(s.view==='seances') html+=this.renderSeances();
     else if(s.view==='review') html+=this.renderReview();
     else if(s.view==='submitted') html+=this.renderSubmitted();
+    else if(s.view==='suggest') html+=this.renderSuggest();
     else if(s.view==='presentation') html+=this.renderPresentation();
     el.innerHTML=html;
     this.attachHandlers();
@@ -539,6 +548,42 @@ const app = {
         <div class="mark">S·T</div>
         <div><div class="title">Carnet de séquences</div><div class="sub">Sciences et technologie — Cycles 1, 2, 3 — Nouvelle-Calédonie</div></div>
       </div>
+      ${this.state.view!=='suggest' ? `<button class="import-link" onclick="app.openSuggest()">💡 Suggérer une amélioration</button>` : ''}
+    </div>`;
+  },
+
+  openSuggest(){ this.state._returnView=this.state.view; this.state.suggestSent=false; this.setView('suggest'); },
+  closeSuggest(){ this.setView(this.state._returnView && this.state._returnView!=='suggest' ? this.state._returnView : 'home'); },
+  sendSuggestion(){
+    const txt=(document.getElementById('sug-text')||{}).value||'';
+    if(!txt.trim()){ alert("Écrivez d'abord votre suggestion."); return; }
+    const author=(document.getElementById('sug-author')||{}).value||'';
+    Store.submitSuggestion({ text: txt, author: author });
+    this.state.suggestSent=true;
+    this.render();
+    window.scrollTo({top:0});
+  },
+  renderSuggest(){
+    if(this.state.suggestSent){
+      return `<div class="panel" style="text-align:center;">
+        <div style="font-size:40px;">💡</div>
+        <h2 style="margin-top:4px;">Merci&nbsp;!</h2>
+        <p style="color:var(--ink-soft);max-width:460px;margin:0 auto 18px;">Votre suggestion est arrivée dans l'espace du conseiller pédagogique.</p>
+        <button class="btn btn-primary" onclick="app.closeSuggest()">Retour</button>
+      </div>`;
+    }
+    return `<div class="panel" style="max-width:640px;margin:0 auto;">
+      <span class="eyebrow">Améliorer le site</span>
+      <h2 style="margin:6px 0 4px;">Une idée, un souci, un manque&nbsp;?</h2>
+      <p style="color:var(--ink-soft);font-size:14px;">Dites ce qui vous aiderait. C'est lu par le conseiller pédagogique — pas affiché publiquement.</p>
+      <div class="field"><label>Votre suggestion</label>
+        <textarea id="sug-text" placeholder="ex. Pouvoir dupliquer une séance, ajouter un champ « durée »…"></textarea></div>
+      <div class="field" style="max-width:280px;"><label>Signature <span class="hint">facultatif</span></label>
+        <input type="text" id="sug-author" placeholder="pseudonyme ou nom, si vous voulez"></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="app.closeSuggest()">Annuler</button>
+        <button class="btn btn-primary" onclick="app.sendSuggestion()">Envoyer</button>
+      </div>
     </div>`;
   },
 
@@ -557,7 +602,8 @@ const app = {
           const suffix=cls==='assistee' ? ' et assisté par IA' : '';
           titleText='Réalisé par : '+names+suffix;
         }
-        return `<div class="existing-badge ${cls}" role="button" tabindex="0" onclick="app.viewExisting(${indices[0]})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();app.viewExisting(${indices[0]});}" title="${this.esc(titleText)}">${indices.length} ${indices.length>1?labelPlural:labelSingular}</div>`;
+        const arg=`[${indices.join(',')}]`;
+        return `<div class="existing-badge ${cls}" role="button" tabindex="0" onclick="app.viewExisting(${arg})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();app.viewExisting(${arg});}" title="${this.esc(titleText)}">${indices.length} ${indices.length>1?labelPlural:labelSingular}</div>`;
       };
       return `
       <div class="theme-card">
@@ -745,6 +791,7 @@ const app = {
 
   renderPresentation(){
     const idx=this.state.viewingExisting;
+    const group=this.state.viewingGroup||[idx];
     const entry=EXISTING_SEQUENCES[idx];
     const styles={
       existante:{bg:'var(--sky-soft)', border:'var(--sky)', label:'Séquence existante', by:'Réalisé par : '+this.esc(entry.data.teacherName)},
@@ -752,12 +799,19 @@ const app = {
       ia:{bg:'var(--forest-soft, #E4EEE6)', border:'var(--forest)', label:'Séquence produite par l\'IA', by:'Séquence modèle rédigée entièrement par l\'IA — à relire avant utilisation en classe'},
     };
     const st=styles[entry.status];
+    const chooser = group.length>1 ? `
+      <div class="preso-tabs">
+        <span class="preso-tabs-label">${group.length} versions :</span>
+        ${group.map((gi,pos)=>{ const e=EXISTING_SEQUENCES[gi]; const lbl=e.status==='ia'?'Modèle IA':(this.esc(e.data.teacherName)||('Séquence '+(pos+1)));
+          return `<button class="preso-tab ${gi===idx?'active':''}" onclick="app.switchExisting(${pos})">${lbl}</button>`; }).join('')}
+      </div>` : '';
     return `<div class="panel">
       <div class="stamp-box" style="background:${st.bg};border-color:${st.border};">
         <span class="eyebrow">${st.label}</span>
         <h3>${this.esc(entry.data.theme)} — ${CYCLE_LABEL[entry.data.cycle]}</h3>
         <p>${st.by}</p>
       </div>
+      ${chooser}
       ${this.entryDetailHTML(entry.data)}
       <div class="btn-row" style="margin-top:24px;">
         <button class="btn btn-ghost" onclick="app.restart()">← Retour à l'accueil</button>
@@ -795,7 +849,7 @@ const app = {
         </div></div>
         <div class="send-step"><div class="num"></div><div class="body">
           <strong>${isModif ? "Proposer cette modification au conseiller" : "Envoyer la séquence au conseiller"}</strong>
-          <p>Elle arrive dans son espace de validation. Après relecture (et éventuelles retouches), elle est publiée sur le site. Vous recevrez un code pour suivre son état.</p>
+          <p>Elle arrive dans son espace de validation. Après relecture (et éventuelles retouches), elle est publiée sur le site.</p>
           <button class="btn btn-primary" style="margin-top:8px;" onclick="app.submitSequence()">📤 ${isModif ? "Proposer la modification" : "Envoyer pour validation"}</button>
         </div></div>
       </div>

@@ -10,6 +10,7 @@ const admin = {
   MOCK_CODE: 'iep1',
   state: {
     unlocked: false,
+    section: 'sequences',   // 'sequences' | 'suggestions'
     view: 'list',
     filter: 'a_valider',
     search: '',
@@ -162,8 +163,35 @@ const admin = {
     alert('Copié.');
   },
 
+  /* ---------------- suggestions ---------------- */
+  sugStatus(id, status){ Store.patchSuggestion(id, { status }); this.render(); },
+  sugDelete(id){ if(confirm("Supprimer cette suggestion ?")){ Store.deleteSuggestion(id); this.render(); } },
+  renderSuggestions(){
+    const list=Store.listSuggestions();
+    const LABEL={ nouveau:'Nouvelle', traitee:'Traitée', ecartee:'Écartée' };
+    if(!list.length){
+      return `<div class="empty" style="background:var(--paper-card);border:1.5px solid var(--line);border-radius:14px;">
+        Aucune suggestion pour l'instant. Les enseignants peuvent en envoyer depuis le bouton « 💡 Suggérer une amélioration » du site.</div>`;
+    }
+    return `<div class="sug-list">
+      ${list.map(s=>`<div class="sug-card ${s.status}">
+        <div class="sug-head">
+          <span class="pill ${s.status==='nouveau'?'a_valider':(s.status==='traitee'?'en_ligne':'masquee')}">${LABEL[s.status]||s.status}</span>
+          <span class="sug-meta">${s.author?this.esc(s.author)+' · ':''}${new Date(s.createdAt).toLocaleString('fr-FR')}</span>
+        </div>
+        <p class="sug-text">${this.esc(s.text)}</p>
+        <div class="sug-actions">
+          ${s.status!=='traitee'?`<button class="row-act primary" onclick="admin.sugStatus('${s.id}','traitee')">Marquer traitée</button>`:''}
+          ${s.status!=='ecartee'?`<button class="row-act" onclick="admin.sugStatus('${s.id}','ecartee')">Écarter</button>`:''}
+          ${s.status!=='nouveau'?`<button class="row-act" onclick="admin.sugStatus('${s.id}','nouveau')">Rouvrir</button>`:''}
+          <button class="row-act" onclick="admin.sugDelete('${s.id}')">Supprimer</button>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  },
+
   /* ---------------- outils ---------------- */
-  resetMock(){ if(confirm("Vider les données locales de la maquette (soumissions, statuts, révisions) ? Les séquences de référence restent intactes.")){ Store.resetLocal(); this.back(); } },
+  resetMock(){ if(confirm("Vider les données locales de la maquette (soumissions, statuts, révisions, suggestions) ? Les séquences de référence restent intactes.")){ Store.resetLocal(); this.state.section='sequences'; this.back(); } },
   downloadWord(){ app.downloadDocx(this.current().data); },
 
   /* ---------------- rendu ---------------- */
@@ -171,10 +199,24 @@ const admin = {
     const el=document.getElementById('admin');
     if(!this.state.unlocked){ el.innerHTML=this.renderGate(); this.wire(); return; }
     let html=this.renderTop();
-    html+= this.state.view==='detail' && this.current() ? this.renderDetail() : this.renderList();
+    html+='<div class="admin-wrap">'+this.renderSectionNav();
+    if(this.state.section==='suggestions'){
+      html+=this.renderSuggestions();
+    } else {
+      html+= this.state.view==='detail' && this.current() ? this.renderDetail() : this.renderList();
+    }
+    html+='</div>';
     el.innerHTML=html;
     if(typeof app!=='undefined' && app.autoGrowAll) app.autoGrowAll(el);
     this.wire();
+  },
+  setSection(s){ this.state.section=s; this.state.view='list'; this.state.selectedId=null; this.render(); window.scrollTo({top:0}); },
+  renderSectionNav(){
+    const nb=Store.listSuggestions().filter(s=>s.status==='nouveau').length;
+    return `<div class="section-nav">
+      <button class="section-btn ${this.state.section==='sequences'?'active':''}" onclick="admin.setSection('sequences')">Séquences</button>
+      <button class="section-btn ${this.state.section==='suggestions'?'active':''}" onclick="admin.setSection('suggestions')">💡 Suggestions${nb?` <span class="sn-badge">${nb}</span>`:''}</button>
+    </div>`;
   },
 
   renderGate(){
@@ -192,9 +234,9 @@ const admin = {
     return `<div class="admin-wrap"><div class="admin-top">
       <div><h1>Zone de validation <span class="mock-flag">maquette locale</span></h1>
         <div class="sub">Les changements sont enregistrés dans ce navigateur uniquement.</div></div>
-      <div><a class="btn btn-ghost" href="index.html" target="_blank">Voir le site public ↗</a>
+      <div class="actions"><a class="btn btn-ghost" href="index.html" target="_blank">Voir le site public ↗</a>
         <button class="btn btn-ghost" onclick="admin.lock()">Quitter</button></div>
-    </div>`;
+    </div></div>`;
   },
 
   renderList(){
@@ -234,7 +276,7 @@ const admin = {
     </div>
     <div class="admin-tools">
       <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="admin.resetMock()">♻️ Réinitialiser la maquette (données locales)</button>
-    </div></div>`;
+    </div>`;
   },
 
   rowHTML(r){
@@ -324,7 +366,7 @@ const admin = {
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">Pour <b>remplacer</b> : passez cette séquence « En ligne » et masquez l'originale.
       Pour <b>garder les deux</b> : passez celle-ci « En ligne » sans toucher à l'originale.</p></div>`:'';
 
-    return `<div class="admin-wrap-inner"><div class="detail">
+    return `<div class="detail">
       <button class="link-btn" onclick="admin.back()">← Retour à la liste</button>
       <h2>${this.esc(r.data.theme)}</h2>
       <p class="detail-sub">${CYCLE_LABEL[r.data.cycle]} · ${this.esc(r.data.niveauClasse||'niveau non précisé')}</p>
@@ -341,7 +383,7 @@ const admin = {
       ${this.state.editing ? this.renderEditor() : `<div class="admin-block"><h3>Aperçu de la séquence</h3>${app.entryDetailHTML(r.data)}</div>`}
       ${this.renderIa(r)}
       ${this.renderHistory(r)}
-    </div></div></div>`;
+    </div>`;
   },
 
   diffTable(diffs){
