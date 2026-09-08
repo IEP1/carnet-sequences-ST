@@ -1,0 +1,39 @@
+name: keepalive-supabase
+
+# Empêche la mise en pause du projet Supabase (plan gratuit : pause après 7 jours
+# sans requête). Ce job fait une requête toutes les 72 h, quoi qu'il arrive —
+# vacances scolaires comprises. Tourne sur GitHub, sans serveur, gratuitement.
+#
+# Pour l'activer : dans le dépôt GitHub → Settings → Secrets and variables →
+# Actions → New repository secret, ajouter :
+#   SUPABASE_URL  =  https://xxxxxxxx.supabase.co   (Project URL)
+#   SUPABASE_ANON_KEY  =  la clé "anon / public"    (Settings → API)
+# Tant que ces secrets ne sont pas définis, le job ne fait rien (il ne plante pas).
+
+on:
+  schedule:
+    - cron: "17 3 */3 * *"   # toutes les 72 h, à 03:17 UTC
+  workflow_dispatch:          # + bouton "Run workflow" manuel
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Requête vers l'API Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Secrets SUPABASE_URL / SUPABASE_ANON_KEY absents — rien à faire."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/?select=1")
+          echo "Réponse Supabase : HTTP $code"
+          # 200, 404 (pas de table), 401… peu importe : la requête a été comptée.
+          case "$code" in
+            2*|4*) echo "OK — compteur d'inactivité remis à zéro." ;;
+            *) echo "Réponse inattendue"; exit 1 ;;
+          esac
