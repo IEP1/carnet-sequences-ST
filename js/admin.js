@@ -116,16 +116,44 @@ const admin = {
     try{
       const parsed=IaPrompt.parseResponse(raw);
       const merged=IaPrompt.merge(rec.data, parsed);
-      this.state.ia={ mode:'paste', text:raw, merged, error:'' };
+      const diffs=app.diffSequences(rec.data, merged);
+      const picks={};
+      diffs.forEach(d=>{ picks[d.path]='after'; });   // par défaut : on adopte la proposition
+      this.state.ia={ mode:'paste', text:raw, merged, diffs, picks, error:'' };
     }catch(e){
       this.state.ia={ mode:'paste', text:raw, merged:null, error:e.message };
     }
     this.render();
   },
+  iaPick(path, side){
+    if(!this.state.ia || !this.state.ia.picks) return;
+    this.state.ia.picks[path]=side;
+    this.render();
+  },
+  iaPickAll(side){
+    if(!this.state.ia) return;
+    this.state.ia.diffs.forEach(d=>{ this.state.ia.picks[d.path]=side; });
+    this.render();
+  },
   iaAccept(){
-    Store.addRevision(this.state.selectedId, this.state.ia.merged, 'Proposition IA (relue par le conseiller)');
+    const ia=this.state.ia, rec=this.current();
+    const kept=ia.diffs.filter(d=>ia.picks[d.path]==='after');
+    if(!kept.length){ alert("Aucune modification sélectionnée à droite : rien à appliquer."); return; }
+    const final=JSON.parse(JSON.stringify(rec.data));
+    kept.forEach(d=>{ this.setPath(final, d.path, this.getFrom(ia.merged, d.path)); });
+    Store.addRevision(this.state.selectedId, final, 'Proposition IA (sélection du conseiller)');
     this.state.ia=null;
     this.render();
+  },
+  getFrom(obj, path){
+    const parts=path.split('.'); let o=obj;
+    for(const p of parts){ if(o==null) return ''; o=o[p]; }
+    return o==null?'':o;
+  },
+  setPath(obj, path, val){
+    const parts=path.split('.'); let o=obj;
+    for(let i=0;i<parts.length-1;i++){ if(o[parts[i]]==null) o[parts[i]]={}; o=o[parts[i]]; }
+    o[parts[parts.length-1]]=val;
   },
   copyText(id){
     const el=document.getElementById(id); if(!el) return;
@@ -352,12 +380,35 @@ const admin = {
       <textarea id="ia-response" class="ia-text" placeholder='{ "objectif": "...", "seances": [ ... ] }'>${this.esc(ia.text||'')}</textarea>
       <div style="margin-top:6px;"><button class="btn btn-primary" onclick="admin.iaAnalyse()">Analyser la réponse</button></div>
       ${ia.error?`<p style="color:var(--danger);font-size:13px;margin-top:8px;">⚠ ${this.esc(ia.error)}</p>`:''}
-      ${ia.merged?`<div style="margin-top:12px;"><h4 style="margin:0 0 6px;">Ce que la proposition changerait :</h4>
-        ${this.diffTable(app.diffSequences(r.data, ia.merged))}
-        <div style="margin-top:8px;"><button class="btn btn-primary" onclick="admin.iaAccept()">✅ Appliquer comme nouvelle version</button>
-        <button class="btn btn-ghost" onclick="admin.state.ia=null; admin.render()">Abandonner</button></div></div>`:''}`;
+      ${ia.merged?this.iaChoiceTable(ia):''}`;
     }
     return `<div class="admin-block"><h3>Renfort par IA (aller-retour manuel)</h3>${inner}</div>`;
+  },
+
+  iaChoiceTable(ia){
+    if(!ia.diffs.length) return `<p style="font-size:13px;margin-top:12px;">La proposition ne change rien.</p>`;
+    const kept=ia.diffs.filter(d=>ia.picks[d.path]==='after').length;
+    return `<div style="margin-top:14px;">
+      <h4 style="margin:0 0 4px;">Pour chaque ligne, cliquez la version à garder</h4>
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Gauche = version actuelle · Droite = proposition de l'IA.
+        <button class="link-btn" onclick="admin.iaPickAll('before')">tout à gauche</button> ·
+        <button class="link-btn" onclick="admin.iaPickAll('after')">tout à droite</button></p>
+      <table class="diff-table choice">
+        <tr><th style="width:24%;">Champ</th><th>Version actuelle</th><th>Proposition IA</th></tr>
+        ${ia.diffs.map(d=>{
+          const p=ia.picks[d.path];
+          return `<tr>
+            <td><b>${this.esc(d.label)}</b></td>
+            <td class="before pick ${p==='before'?'picked':''}" onclick="admin.iaPick('${d.path}','before')">${this.esc(d.before)}</td>
+            <td class="after pick ${p==='after'?'picked':''}" onclick="admin.iaPick('${d.path}','after')">${this.esc(d.after)}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+      <div style="margin-top:10px;">
+        <button class="btn btn-primary" onclick="admin.iaAccept()">✅ Appliquer (${kept} ligne${kept>1?'s':''} adoptée${kept>1?'s':''})</button>
+        <button class="btn btn-ghost" onclick="admin.state.ia=null; admin.render()">Abandonner</button>
+      </div>
+    </div>`;
   },
 
   /* -------- éditeur de contenu -------- */

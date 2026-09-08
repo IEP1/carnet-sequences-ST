@@ -19,7 +19,7 @@
    ============================================================ */
 const Store = (function(){
   const LS_KEY   = 'cds:store:v1';
-  const SEED_URL = 'data/sequences.json?v=20260908a';
+  const SEED_URL = 'data/sequences.json?v=20260908b';
 
   const PUBLISHED = ['publie','existante','assistee','ia'];
 

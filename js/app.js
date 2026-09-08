@@ -155,24 +155,24 @@ const app = {
     const fieldLabels={teacherName:"Pseudonyme", niveauClasse:"Niveau / Classe", attendu:"Attendu", objectif:"Objectif général", vocabulaire:"Vocabulaire", prerequis:"Prérequis", materiel:"Matériel (séquence)", evaluation:"Évaluation", nbSeances:"Nombre de séances"};
     Object.keys(fieldLabels).forEach(k=>{
       const before=o[k]===undefined?'':String(o[k]), after=f[k]===undefined?'':String(f[k]);
-      if(before!==after) diffs.push({label:fieldLabels[k], before, after});
+      if(before!==after) diffs.push({label:fieldLabels[k], before, after, path:k});
     });
     const socleBefore=(o.domaineSocle||[]).join(', '), socleAfter=(f.domaineSocle||[]).join(', ');
-    if(socleBefore!==socleAfter) diffs.push({label:"Domaines du socle", before:socleBefore, after:socleAfter});
+    if(socleBefore!==socleAfter) diffs.push({label:"Domaines du socle", before:socleBefore, after:socleAfter, path:'domaineSocle'});
 
     const stepLabels={enseignant:"Rôle enseignant", eleve:"Rôle élève", consigne:"Consignes", materiel:"Matériel", modalite:"Modalité"};
     (f.seances||[]).forEach((s,i)=>{
       const os=(o.seances||[])[i];
-      if(!os){ diffs.push({label:`Séance ${i+1}`, before:'(nouvelle séance)', after:s.titre||'(sans titre)'}); return; }
-      if((os.titre||'')!==(s.titre||'')) diffs.push({label:`Séance ${i+1} — Titre`, before:os.titre||'—', after:s.titre||'—'});
-      if((os.objectifOp||'')!==(s.objectifOp||'')) diffs.push({label:`Séance ${i+1} — Objectif opérationnel`, before:os.objectifOp||'—', after:s.objectifOp||'—'});
-      if((os.bilan||'')!==(s.bilan||'')) diffs.push({label:`Séance ${i+1} — Bilan`, before:os.bilan||'—', after:s.bilan||'—'});
-      if((os.differenciation||'')!==(s.differenciation||'')) diffs.push({label:`Séance ${i+1} — Différenciation`, before:os.differenciation||'—', after:s.differenciation||'—'});
+      if(!os){ diffs.push({label:`Séance ${i+1}`, before:'(nouvelle séance)', after:s.titre||'(sans titre)', path:`seances.${i}`}); return; }
+      if((os.titre||'')!==(s.titre||'')) diffs.push({label:`Séance ${i+1} — Titre`, before:os.titre||'—', after:s.titre||'—', path:`seances.${i}.titre`});
+      if((os.objectifOp||'')!==(s.objectifOp||'')) diffs.push({label:`Séance ${i+1} — Objectif opérationnel`, before:os.objectifOp||'—', after:s.objectifOp||'—', path:`seances.${i}.objectifOp`});
+      if((os.bilan||'')!==(s.bilan||'')) diffs.push({label:`Séance ${i+1} — Bilan`, before:os.bilan||'—', after:s.bilan||'—', path:`seances.${i}.bilan`});
+      if((os.differenciation||'')!==(s.differenciation||'')) diffs.push({label:`Séance ${i+1} — Différenciation`, before:os.differenciation||'—', after:s.differenciation||'—', path:`seances.${i}.differenciation`});
       STEPS.forEach(([key,label])=>{
         const ost=(os.steps||{})[key]||{}, st=s.steps[key]||{};
         Object.keys(stepLabels).forEach(sk=>{
           const before=ost[sk]||'', after=st[sk]||'';
-          if(before!==after) diffs.push({label:`Séance ${i+1} — ${label} — ${stepLabels[sk]}`, before:before||'—', after:after||'—'});
+          if(before!==after) diffs.push({label:`Séance ${i+1} — ${label} — ${stepLabels[sk]}`, before:before||'—', after:after||'—', path:`seances.${i}.steps.${key}.${sk}`});
         });
       });
     });
