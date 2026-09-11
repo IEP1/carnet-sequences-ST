@@ -545,7 +545,7 @@ const app = {
     return `
     <div class="topbar">
       <div class="brand" role="button" tabindex="0" title="Retour à l'accueil" onclick="app.restart()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();app.restart();}">
-        <div class="mark">S·T</div>
+        <img class="mark" src="assets/brand/logo-iep1.png" alt="IEP1" width="44" height="44">
         <div><div class="title">Carnet de séquences</div><div class="sub">Sciences et technologie — Cycles 1, 2, 3 — Nouvelle-Calédonie</div></div>
       </div>
       ${this.state.view!=='suggest' ? `<button class="import-link" onclick="app.openSuggest()">💡 Suggérer une amélioration</button>` : ''}

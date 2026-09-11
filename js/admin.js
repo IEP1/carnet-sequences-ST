@@ -245,6 +245,7 @@ const admin = {
 
   renderGate(){
     return `<div class="admin-wrap"><div class="admin-gate">
+      <img src="assets/brand/logo-iep1.png" alt="IEP1" width="56" height="56" style="display:block;margin:0 auto 10px;border-radius:50%;box-shadow:0 0 0 1px var(--line);">
       <span class="eyebrow">Carnet de séquences</span>
       <h1 style="margin:6px 0;">Zone de validation</h1>
       <p style="font-size:13px;color:var(--ink-soft);">Espace réservé au conseiller pédagogique.</p>
@@ -255,8 +256,11 @@ const admin = {
 
   renderTop(){
     return `<div class="admin-wrap"><div class="admin-top">
-      <div><h1>Zone de validation</h1>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <img src="assets/brand/logo-iep1.png" alt="IEP1" width="40" height="40" style="border-radius:50%;box-shadow:0 0 0 1px var(--line);flex-shrink:0;">
+        <div><h1>Zone de validation</h1>
         <div class="sub">Connecté en tant que ${this.esc(this.ADMIN_EMAIL)}</div></div>
+      </div>
       <div class="actions"><a class="btn btn-ghost" href="index.html" target="_blank">Voir le site public ↗</a>
         <button class="btn btn-ghost" onclick="admin.lock()">Se déconnecter</button></div>
     </div></div>`;
