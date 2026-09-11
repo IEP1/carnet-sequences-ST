@@ -104,7 +104,7 @@
   font-weight:600;color:var(--ink-soft);cursor:pointer;font-family:'Inter',sans-serif;}
 .status-opt:hover{border-color:var(--moss);}
 .status-opt.on{color:#fff;border-color:transparent;}
-.status-opt.on.a_valider{background:var(--ochre);}
+.status-opt.on.a_valider{background:var(--ochre);color:var(--forest-dark);}
 .status-opt.on.en_ligne{background:var(--forest);}
 .status-opt.on.masquee{background:var(--ink-soft);}
 .status-opt.on.refusee{background:var(--danger);}
