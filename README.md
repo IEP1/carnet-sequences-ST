@@ -7,10 +7,12 @@ de sciences et technologie, cycles 1 à 3 (programmes Nouvelle-Calédonie).
   cycle et un thème → fiche séquence → séances (démarche d'investigation, 7 étapes) →
   **envoie la séquence pour validation**. Il garde la possibilité de télécharger en
   **Word / PDF**. Un **pseudonyme** calédonien remplace le vrai nom ; un e-mail de
-  contact facultatif reste privé.
-- **Zone de validation** (`admin.html`) : le conseiller relit, retouche, renforce avec
-  l'IA (aller-retour manuel), puis **publie / masque / refuse / supprime**. Historique
-  des versions, détection de doublons.
+  contact facultatif reste privé. Bouton **💡 Suggérer une amélioration**.
+- **Zone de validation** (`admin.html`) : connexion Google réservée au conseiller
+  pédagogique. Il relit, retouche, renforce avec l'IA (aller-retour manuel), puis
+  **publie / masque / refuse / supprime**. Historique des versions, détection de
+  doublons, suggestions des enseignants dans un onglet dédié.
+- **Backend : Firebase** (Firestore + Authentication). Voir `docs/FIREBASE.md`.
 
 ## Lancer en local
 
@@ -22,7 +24,8 @@ python -m http.server 4173
 ```
 
 - Site public : http://localhost:4173
-- Zone de validation : http://localhost:4173/admin.html — code maquette : **`iep1`**
+- Zone de validation : http://localhost:4173/admin.html — connexion Google, réservée à
+  l'adresse définie dans `js/admin.js` (`ADMIN_EMAIL`) et dans `firestore.rules`.
 
 ## Structure
 
@@ -30,13 +33,15 @@ python -m http.server 4173
 |---|---|
 | `index.html` / `admin.html` | Les deux pages ; chargent les scripts dans l'ordre |
 | `assets/styles.css` · `assets/admin.css` | Styles |
-| `data/sequences.json` | **Seed** : 47 séquences (AP3 anonymisées + modèles IA). Migrera dans Supabase |
+| `js/firebase-config.js` | Identifiants publics du projet Firebase (comparable à une clé "anon") |
+| `firestore.rules` | Règles de sécurité Firestore — à coller dans la console Firebase à chaque évolution |
+| `data/sequences.json` | **Seed** : 47 séquences de référence (AP3 anonymisées + modèles IA), importées une fois dans Firestore via le bouton admin |
 | `js/data.js` | Données de référence : programmes, thèmes, aide par étape |
-| `js/store.js` | **Couche d'accès aux séquences** — seed + état local (localStorage). C'est ici que Supabase se branchera |
+| `js/store.js` | **Couche d'accès aux séquences** — parle à Firestore. Si le backend change un jour, seul ce fichier bouge |
 | `js/sequences-modeles.js` | Expose `EXISTING_SEQUENCES` au site public via `Store.listPublished()` |
 | `js/storage.js` | Brouillon de saisie (`localStorage`, `Draft`) |
 | `js/pseudonym.js` | Pseudonymes calédoniens |
-| `js/zip.js` | Création / lecture d'archives `.zip` (export Word) |
+| `js/zip.js` | Création d'archives `.zip` (export Word) |
 | `js/ia-prompt.js` | Aller-retour IA : construction du prompt, lecture de la réponse, fusion — voir `docs/PROMPT-IA.md` |
 | `js/app.js` | Application enseignant (site public) |
 | `js/admin.js` | Zone de validation |
@@ -49,25 +54,20 @@ s'amorcent que si leur conteneur (`#app` / `#admin`) est présent — `admin.htm
 Les `<script>` / `<link>` portent `?v=AAAAMMJJx` : **incrémenter à chaque mise en ligne**
 pour forcer le rechargement (cache navigateur).
 
-## État des données (maquette)
-
-Tant que Supabase n'est pas branché, `js/store.js` garde l'état « vivant »
-(soumissions, statuts, révisions, retouches) dans le `localStorage` du navigateur
-(clé `cds:store:v1`). La zone admin permet d'**exporter / importer** cet état en JSON,
-et de le réinitialiser. Le seed (`data/sequences.json`) reste la référence versionnée.
-
 ## Déploiement
 
 Site statique → GitHub Pages ou Netlify, sans build. `admin.html` porte `noindex`.
+Un job GitHub Actions (`.github/workflows/keepalive.yml`) existe côté Supabase pour un
+usage futur ; il est inactif tant que ses secrets ne sont pas renseignés.
 
 ## Feuille de route
 
-1. **Fait** — modules, `git`, sauvegarde locale, pseudonymes anonymes, extraction du
-   seed, couche `Store`, flux de soumission, **zone de validation (maquette)**,
-   aller-retour IA.
-2. **En cours** — recueil des retours sur la maquette admin.
-3. **Supabase** : table `sequences` (JSONB) + vue publique + Auth (lien magique) ;
-   réécriture interne de `js/store.js` ; import du seed.
-4. **Mise en ligne** (Netlify / GitHub Pages) + variables d'environnement.
+1. **Fait** — modules, `git`, sauvegarde locale, pseudonymes anonymes, zone de
+   validation, aller-retour IA, suggestions, **backend Firebase (Firestore + Auth)**.
+2. **En cours** — premières séquences réelles, retours d'usage.
+3. **Plus tard** — automatiser l'appel IA (fonction serveur — probablement via
+   Supabase Edge Functions, gratuites sans carte bancaire, gardé de côté pour ça).
 
-Voir `docs/SCHEMA-SUPABASE.md` (décisions, schéma, RLS) et `docs/PROMPT-IA.md`.
+Voir `docs/FIREBASE.md` (schéma, règles, étapes de configuration) et `docs/PROMPT-IA.md`.
+`docs/SCHEMA-SUPABASE.md` documente la réflexion initiale (conservée pour mémoire) ;
+le stockage a finalement été fait sur Firebase, Supabase restant une option pour l'IA.

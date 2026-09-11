@@ -1,77 +1,63 @@
 /* ============================================================
    STORE — accès aux séquences (couche isolée)
 
-   Aujourd'hui :
-     - seed en lecture seule : data/sequences.json
-     - état « vivant » (soumissions, changements de statut, révisions,
-       retouches) : localStorage (clé cds:store:v1)
+   Backend : Firebase Firestore (voir js/firebase-config.js pour la connexion).
+   Le site public et la zone admin n'appellent que Store.xxx() ; si on change
+   un jour de backend, seul l'intérieur de ce fichier bouge.
 
-   Demain : Supabase. Seul l'intérieur de ces fonctions changera ;
-   le site et la zone admin continueront d'appeler Store.xxx().
+   Lecture publique : une requête ponctuelle au chargement (site à fort trafic
+   potentiel → on évite un flux temps réel par visiteur).
+   Lecture admin (Store.watchAdmin) : écoute en temps réel — un seul utilisateur,
+   et c'est ce qui permet de voir arriver les soumissions sans recharger.
 
    Forme d'un enregistrement :
      { id, status, origin, data,
        contactEmail, adminNote, rejectReason,
        sourceId, createdAt, updatedAt, publishedAt, revisions:[{label,data,at}] }
 
-   status : soumis · en_revue · publie · masque · rejete · supprime
-            (+ seed : existante · assistee · ia  → considérés « en ligne »)
+   status : soumis · publie · masque · rejete · supprime
+            (+ import initial : existante · assistee · ia  → considérés « en ligne »)
    ============================================================ */
 const Store = (function(){
-  const LS_KEY   = 'cds:store:v1';
-  const SEED_URL = 'data/sequences.json?v=20260908c';
-
   const PUBLISHED = ['publie','existante','assistee','ia'];
 
-  let seed  = [];
-  let local = { submissions: [], overrides: {}, suggestions: [] };
+  let db = null;
+  let pubCache = [];       // site public : séquences publiées
+  let allCache = [];       // admin : toutes les séquences
+  let sugCache = [];       // admin : suggestions
   let ready = null;
-  let seedError = null;   // message si le seed n'a pas pu être chargé
+  let seedError = null;
+  let adminUnsubs = [];
 
-  /* ---------------- localStorage ---------------- */
-  function loadLocal(){
-    try{
-      const raw = localStorage.getItem(LS_KEY);
-      if(raw){
-        const o = JSON.parse(raw) || {};
-        local = {
-          submissions: Array.isArray(o.submissions) ? o.submissions : [],
-          overrides:  (o.overrides && typeof o.overrides === 'object') ? o.overrides : {},
-          suggestions: Array.isArray(o.suggestions) ? o.suggestions : []
-        };
-      }
-    }catch(e){ /* mode privé / corrompu : on repart vide */ }
-  }
-  function saveLocal(){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(local)); }catch(e){}
+  function getDb(){ if(!db) db = firebase.firestore(); return db; }
+  function nowISO(){ return new Date().toISOString(); }
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function norm(s){ return (s||'').toString().toLowerCase().replace(/\s+/g,' ').trim(); }
+  function toRecord(doc){ return Object.assign({ id: doc.id }, doc.data()); }
+  function withoutId(rec){ const o=Object.assign({}, rec); delete o.id; return o; }
+
+  /* Écrit vers Firestore en tâche de fond ; on a déjà mis à jour le cache local
+     avant l'appel (voir chaque fonction), donc l'interface reste synchrone. */
+  function bg(promise){
+    promise.catch(function(err){
+      console.error('Firestore :', err);
+      alert("Problème de connexion à la base de données : " + err.message);
+    });
   }
 
-  /* ---------------- init ---------------- */
+  /* ---------------- init (site public) ---------------- */
   function init(){
     if(ready) return ready;
-    loadLocal();
-    ready = fetch(SEED_URL)
-      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(function(rows){ seed = Array.isArray(rows) ? rows : []; seedError = null; })
+    ready = getDb().collection('sequences').where('status','in',PUBLISHED).get()
+      .then(function(snap){ pubCache = snap.docs.map(toRecord); seedError = null; })
       .catch(function(err){
-        console.error('Seed non chargé :', err);
-        seed = [];
-        seedError = (location.protocol === 'file:')
-          ? "La page a été ouverte directement (file://). Lancez un petit serveur — dans le dossier du projet : « python -m http.server 4173 » puis ouvrez http://localhost:4173"
-          : "Impossible de charger data/sequences.json (" + err.message + ").";
+        console.error('Séquences non chargées :', err);
+        pubCache = [];
+        seedError = "Impossible de charger les séquences (" + err.message + ").";
       });
     return ready;
   }
-  function seedStatus(){ return { count: seed.length, error: seedError }; }
-
-  /* ---------------- helpers ---------------- */
-  function norm(s){ return (s||'').toString().toLowerCase().replace(/\s+/g,' ').trim(); }
-  function slug(s){
-    return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'x';
-  }
-  function nowISO(){ return new Date().toISOString(); }
-  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function seedStatus(){ return { count: pubCache.length, error: seedError }; }
 
   function bucket(rec){
     if(rec.status==='soumis' || rec.status==='en_revue') return 'a_valider';
@@ -92,23 +78,11 @@ const Store = (function(){
     })[rec.origin] || rec.origin || '';
   }
 
-  /* seed + override local fusionnés */
-  function resolved(){
-    const out = seed.map(function(s){
-      const ov = local.overrides[s.id];
-      return ov ? Object.assign({}, s, ov) : Object.assign({}, s);
-    });
-    local.submissions.forEach(function(sub){
-      const ov = local.overrides[sub.id];
-      out.push(ov ? Object.assign({}, sub, ov) : sub);
-    });
-    return out;
-  }
-  function findById(id){ return resolved().filter(function(r){ return r.id===id; })[0] || null; }
+  function findById(id){ return allCache.filter(function(r){ return r.id===id; })[0] || null; }
 
   /* ---------------- API site public ---------------- */
   function listPublished(filter){
-    let rows = resolved().filter(function(r){ return PUBLISHED.indexOf(r.status)>-1; });
+    let rows = pubCache;
     if(filter && filter.cycle) rows = rows.filter(function(r){ return r.data.cycle===filter.cycle; });
     return rows;
   }
@@ -117,9 +91,7 @@ const Store = (function(){
   function submit(payload){
     const data = payload.data || payload;
     const t = nowISO();
-    const base = data.cycle+'__'+slug(data.theme)+'__'+slug(data.teacherName);
-    let id = base, n = 2;
-    while(findById(id)) id = base+'-'+(n++);
+    const id = getDb().collection('sequences').doc().id;
     const rec = {
       id: id, status: 'soumis', origin: 'enseignant',
       data: data,
@@ -129,21 +101,36 @@ const Store = (function(){
       createdAt: t, updatedAt: t, publishedAt: null,
       revisions: [{ label: 'Version enseignant', data: clone(data), at: t }]
     };
-    local.submissions.push(rec);
-    saveLocal();
+    allCache.push(rec);
+    bg(getDb().collection('sequences').doc(id).set(withoutId(rec)));
     return rec;
   }
 
   /* ---------------- API zone admin ---------------- */
-  function listAll(){ return resolved(); }
+  /* Écoute en temps réel : appelle onChange() à chaque chargement/mise à jour
+     (y compris les soumissions arrivées depuis un autre appareil). */
+  function watchAdmin(onChange){
+    unwatchAdmin();
+    const u1 = getDb().collection('sequences').onSnapshot(function(snap){
+      allCache = snap.docs.map(toRecord);
+      onChange();
+    }, function(err){ console.error('Admin séquences :', err); });
+    const u2 = getDb().collection('suggestions').onSnapshot(function(snap){
+      sugCache = snap.docs.map(toRecord).sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+      onChange();
+    }, function(err){ console.error('Admin suggestions :', err); });
+    adminUnsubs = [u1, u2];
+  }
+  function unwatchAdmin(){ adminUnsubs.forEach(function(u){ u(); }); adminUnsubs = []; allCache=[]; sugCache=[]; }
+
+  function listAll(){ return allCache; }
 
   function patch(id, changes){
     const t = nowISO();
-    const sub = local.submissions.filter(function(s){ return s.id===id; })[0];
-    if(sub){ Object.assign(sub, changes, { updatedAt: t }); }
-    else { local.overrides[id] = Object.assign({}, local.overrides[id], changes, { updatedAt: t }); }
-    saveLocal();
-    return findById(id);
+    const rec = findById(id);
+    if(rec) Object.assign(rec, changes, { updatedAt: t });
+    bg(getDb().collection('sequences').doc(id).set(Object.assign({}, changes, { updatedAt: t }), { merge: true }));
+    return rec;
   }
 
   function setStatus(id, status, extra){
@@ -175,16 +162,13 @@ const Store = (function(){
   }
 
   function hardDelete(id){
-    local.submissions = local.submissions.filter(function(s){ return s.id!==id; });
-    if(local.overrides[id]) delete local.overrides[id];
-    // un enregistrement seed ne peut pas être vraiment supprimé : on le masque en 'supprime'
-    if(seed.some(function(s){ return s.id===id; })) local.overrides[id] = { status: 'supprime', updatedAt: nowISO() };
-    saveLocal();
+    allCache = allCache.filter(function(r){ return r.id!==id; });
+    bg(getDb().collection('sequences').doc(id).delete());
   }
 
   /* Doublons : même cycle + même thème. */
   function duplicatesOf(rec){
-    return resolved().filter(function(r){
+    return allCache.filter(function(r){
       return r.id!==rec.id
         && r.data.cycle===rec.data.cycle
         && norm(r.data.theme)===norm(rec.data.theme)
@@ -193,7 +177,7 @@ const Store = (function(){
   }
 
   function stats(){
-    const rows = resolved();
+    const rows = allCache;
     const published = rows.filter(function(r){ return PUBLISHED.indexOf(r.status)>-1; });
     const byCycle = {C1:0,C2:0,C3:0};
     published.forEach(function(r){ if(byCycle[r.data.cycle]!==undefined) byCycle[r.data.cycle]++; });
@@ -202,57 +186,60 @@ const Store = (function(){
     return { total: rows.length, published: published.length, byCycle: byCycle, buckets: counts };
   }
 
-  /* ---------------- sauvegarde ---------------- */
-  function exportAll(){
-    return JSON.stringify({ exportedAt: nowISO(), seed: seed, local: local }, null, 1);
-  }
-  function importLocal(json){
-    const o = JSON.parse(json);
-    if(o.local && typeof o.local === 'object'){
-      local = {
-        submissions: Array.isArray(o.local.submissions) ? o.local.submissions : [],
-        overrides: (o.local.overrides && typeof o.local.overrides === 'object') ? o.local.overrides : {},
-        suggestions: Array.isArray(o.local.suggestions) ? o.local.suggestions : []
-      };
-      saveLocal();
-    }
-  }
-  function resetLocal(){ local = { submissions: [], overrides: {}, suggestions: [] }; saveLocal(); }
-
   /* ---------------- suggestions d'amélioration du site ---------------- */
   function submitSuggestion(payload){
     const t = nowISO();
+    const id = getDb().collection('suggestions').doc().id;
     const rec = {
-      id: 'sug-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      id: id,
       text: (payload.text || '').trim(),
       author: (payload.author || '').trim(),
       status: 'nouveau',          // nouveau · traitee · ecartee
       createdAt: t, updatedAt: t
     };
-    local.suggestions.push(rec);
-    saveLocal();
+    bg(getDb().collection('suggestions').doc(id).set(withoutId(rec)));
     return rec;
   }
-  function listSuggestions(){ return local.suggestions.slice().reverse(); }
+  function listSuggestions(){ return sugCache; }
   function patchSuggestion(id, changes){
-    const s = local.suggestions.filter(function(x){ return x.id===id; })[0];
-    if(s){ Object.assign(s, changes, { updatedAt: nowISO() }); saveLocal(); }
+    const t = nowISO();
+    const s = sugCache.filter(function(x){ return x.id===id; })[0];
+    if(s) Object.assign(s, changes, { updatedAt: t });
+    bg(getDb().collection('suggestions').doc(id).set(Object.assign({}, changes, { updatedAt: t }), { merge: true }));
     return s || null;
   }
   function deleteSuggestion(id){
-    local.suggestions = local.suggestions.filter(function(x){ return x.id!==id; });
-    saveLocal();
+    sugCache = sugCache.filter(function(x){ return x.id!==id; });
+    bg(getDb().collection('suggestions').doc(id).delete());
+  }
+
+  /* ---------------- import initial (seed) — zone admin uniquement ---------------- */
+  function importSeed(rows){
+    const t = nowISO();
+    const batch = getDb().batch();
+    rows.forEach(function(row){
+      const ref = getDb().collection('sequences').doc(row.id);
+      batch.set(ref, {
+        status: row.status, origin: row.origin, data: row.data,
+        contactEmail: '', adminNote: '', rejectReason: '', sourceId: null,
+        createdAt: t, updatedAt: t,
+        publishedAt: PUBLISHED.indexOf(row.status)>-1 ? t : null,
+        revisions: [{ label: 'Import initial', data: row.data, at: t }]
+      }, { merge: true });
+    });
+    return batch.commit();
   }
 
   return {
     init: init, seedStatus: seedStatus,
     listPublished: listPublished, submit: submit,
+    watchAdmin: watchAdmin, unwatchAdmin: unwatchAdmin,
     listAll: listAll, findById: findById, patch: patch, setStatus: setStatus,
     addRevision: addRevision, restoreRevision: restoreRevision,
     duplicate: duplicate, hardDelete: hardDelete, duplicatesOf: duplicatesOf,
     bucket: bucket, BUCKET_LABEL: BUCKET_LABEL, originLabel: originLabel, stats: stats,
     submitSuggestion: submitSuggestion, listSuggestions: listSuggestions,
     patchSuggestion: patchSuggestion, deleteSuggestion: deleteSuggestion,
-    exportAll: exportAll, importLocal: importLocal, resetLocal: resetLocal
+    importSeed: importSeed
   };
 })();

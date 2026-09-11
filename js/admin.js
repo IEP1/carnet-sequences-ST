@@ -1,15 +1,17 @@
 /* ============================================================
-   ZONE DE VALIDATION (maquette)
+   ZONE DE VALIDATION
 
-   Fonctionne sur la couche Store (js/store.js). Pour l'instant les données
-   « vivantes » sont dans le localStorage du navigateur : c'est une maquette
-   pour valider l'ergonomie. Le branchement Supabase ne changera que Store
-   et remplacera la porte d'entrée (code) par une vraie authentification.
+   Fonctionne sur la couche Store (js/store.js), branchée sur Firestore.
+   Accès réservé à ADMIN_EMAIL via connexion Google (Firebase Authentication) ;
+   la vraie barrière de sécurité est dans firestore.rules, ceci n'est qu'un
+   confort d'affichage côté client.
    ============================================================ */
 const admin = {
-  MOCK_CODE: 'iep1',
+  ADMIN_EMAIL: 'vince.renais@gmail.com',
   state: {
     unlocked: false,
+    authChecked: false,
+    authError: '',
     section: 'sequences',   // 'sequences' | 'suggestions'
     view: 'list',
     filter: 'a_valider',
@@ -24,23 +26,33 @@ const admin = {
   esc(s){ return app.esc(s); },
 
   boot(){
-    try{ this.state.unlocked = sessionStorage.getItem('cds:admin') === '1'; }catch(e){}
-    this.render();
-    Store.init().then(()=>this.render());
+    firebase.auth().onAuthStateChanged(user=>{
+      this.state.authChecked = true;
+      const ok = !!(user && user.email === this.ADMIN_EMAIL);
+      this.state.unlocked = ok;
+      if(ok){
+        Store.watchAdmin(()=>this.render());
+      } else {
+        Store.unwatchAdmin();
+        if(user && user.email !== this.ADMIN_EMAIL){
+          this.state.authError = "Ce compte (" + user.email + ") n'est pas autorisé.";
+          firebase.auth().signOut();
+        }
+      }
+      this.render();
+    });
   },
 
-  /* ---------------- porte d'entrée (maquette) ---------------- */
-  tryUnlock(){
-    const v = (document.getElementById('gate-code')||{}).value || '';
-    if(v.trim().toLowerCase() === this.MOCK_CODE){
-      this.state.unlocked = true;
-      try{ sessionStorage.setItem('cds:admin','1'); }catch(e){}
-      this.render();
-    } else {
-      alert('Code incorrect (maquette : « '+this.MOCK_CODE+' »).');
-    }
+  /* ---------------- porte d'entrée ---------------- */
+  signIn(){
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider).catch(err=>{
+      if(err.code !== 'auth/popup-closed-by-user'){
+        alert('Connexion impossible : ' + err.message);
+      }
+    });
   },
-  lock(){ try{ sessionStorage.removeItem('cds:admin'); }catch(e){} this.state.unlocked=false; this.render(); },
+  lock(){ firebase.auth().signOut(); },
 
   /* ---------------- navigation ---------------- */
   setFilter(f){ this.state.filter=f; this.state.view='list'; this.state.selectedId=null; this.render(); },
@@ -191,13 +203,25 @@ const admin = {
   },
 
   /* ---------------- outils ---------------- */
-  resetMock(){ if(confirm("Vider les données locales de la maquette (soumissions, statuts, révisions, suggestions) ? Les séquences de référence restent intactes.")){ Store.resetLocal(); this.state.section='sequences'; this.back(); } },
+  importSeedNow(){
+    if(!confirm("Importer/rétablir les 47 séquences de référence (AP3 + modèles IA) dans la base ? Sans danger si déjà fait : les fiches existantes seront simplement réécrites à l'identique."))
+      return;
+    fetch('data/sequences.json?v=20260911a')
+      .then(r=>r.json())
+      .then(rows=>Store.importSeed(rows))
+      .then(()=>alert("Import terminé."))
+      .catch(err=>alert("Erreur d'import : "+err.message));
+  },
   downloadWord(){ app.downloadDocx(this.current().data); },
 
   /* ---------------- rendu ---------------- */
   render(){
     const el=document.getElementById('admin');
-    if(!this.state.unlocked){ el.innerHTML=this.renderGate(); this.wire(); return; }
+    if(!this.state.unlocked){
+      el.innerHTML = this.state.authChecked ? this.renderGate() : '';
+      this.wire();
+      return;
+    }
     let html=this.renderTop();
     html+='<div class="admin-wrap">'+this.renderSectionNav();
     if(this.state.section==='suggestions'){
@@ -224,18 +248,17 @@ const admin = {
       <span class="eyebrow">Carnet de séquences</span>
       <h1 style="margin:6px 0;">Zone de validation</h1>
       <p style="font-size:13px;color:var(--ink-soft);">Espace réservé au conseiller pédagogique.</p>
-      <input type="text" id="gate-code" placeholder="code d'accès" autocomplete="off">
-      <button class="btn btn-primary" onclick="admin.tryUnlock()" style="width:100%;">Entrer</button>
-      <p class="mock-flag" style="margin-top:14px;">Maquette — accès réel par lien magique une fois Supabase branché</p>
+      ${this.state.authError?`<p style="font-size:13px;color:var(--danger);margin-top:10px;">${this.esc(this.state.authError)}</p>`:''}
+      <button class="btn btn-primary" onclick="admin.signIn()" style="width:100%;margin-top:14px;">Se connecter avec Google</button>
     </div></div>`;
   },
 
   renderTop(){
     return `<div class="admin-wrap"><div class="admin-top">
-      <div><h1>Zone de validation <span class="mock-flag">maquette locale</span></h1>
-        <div class="sub">Les changements sont enregistrés dans ce navigateur uniquement.</div></div>
+      <div><h1>Zone de validation</h1>
+        <div class="sub">Connecté en tant que ${this.esc(this.ADMIN_EMAIL)}</div></div>
       <div class="actions"><a class="btn btn-ghost" href="index.html" target="_blank">Voir le site public ↗</a>
-        <button class="btn btn-ghost" onclick="admin.lock()">Quitter</button></div>
+        <button class="btn btn-ghost" onclick="admin.lock()">Se déconnecter</button></div>
     </div></div>`;
   },
 
@@ -275,7 +298,7 @@ const admin = {
       ${rows.length ? rows.map(r=>this.rowHTML(r)).join('') : '<div class="empty">Aucune séquence dans cette vue.</div>'}
     </div>
     <div class="admin-tools">
-      <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="admin.resetMock()">♻️ Réinitialiser la maquette (données locales)</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="admin.importSeedNow()">🌱 Importer / rétablir les séquences de référence</button>
     </div>`;
   },
 
@@ -498,10 +521,7 @@ const admin = {
     return o==null?'':o;
   },
 
-  wire(){
-    const gate=document.getElementById('gate-code');
-    if(gate) gate.addEventListener('keydown',e=>{ if(e.key==='Enter') admin.tryUnlock(); });
-  }
+  wire(){}
 };
 
 if(document.getElementById('admin')) admin.boot();

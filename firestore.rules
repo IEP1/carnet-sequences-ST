@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+          && request.auth.token.email == 'vince.renais@gmail.com';
+    }
+
+    match /sequences/{id} {
+      // Lecture publique : uniquement les séquences publiées (+ le conseiller voit tout).
+      allow read: if isAdmin()
+                  || resource.data.status in ['publie','existante','assistee','ia'];
+
+      // Un enseignant peut soumettre une nouvelle séquence (statut 'soumis' uniquement,
+      // pas d'authentification requise). Le conseiller peut créer n'importe quel statut
+      // (import initial, duplication).
+      allow create: if isAdmin()
+                    || request.resource.data.status == 'soumis';
+
+      // Modification / suppression : réservé au conseiller.
+      allow update, delete: if isAdmin();
+    }
+
+    match /suggestions/{id} {
+      // N'importe qui peut envoyer une suggestion ; seul le conseiller les lit/gère.
+      allow create: if request.resource.data.status == 'nouveau';
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

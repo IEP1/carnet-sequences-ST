@@ -1,5 +1,15 @@
 # Vision produit + piste de schéma Supabase
 
+> **Statut (2026-09-11) : superseded pour le stockage.** Le backend réel du site est
+> **Firebase** (Firestore + Auth) — voir `docs/FIREBASE.md`. Raison du changement :
+> pause automatique des projets Supabase gratuits après 7 jours d'inactivité, et
+> plafond de 2 projets gratuits par compte (pas par organisation), tous deux bloquants
+> sur le compte utilisé. Ce document reste comme trace de la réflexion produit
+> (vision, anonymat, workflow de validation — toujours valable) et parce que
+> **Supabase reste une option envisagée pour une fonction serveur IA** plus tard
+> (Edge Functions utilisables sans carte bancaire, contrairement à Firebase Cloud
+> Functions qui exigent le plan payant Blaze).
+
 > Cadre les décisions avant d'ouvrir un projet Supabase. Rien n'est encore branché.
 
 ## Vision confirmée (2026-09-07)

@@ -1,8 +1,8 @@
 /* ============================================================
    SÉQUENCES PUBLIÉES — exposées au site public
 
-   Passe par la couche Store (js/store.js) : aujourd'hui data/sequences.json,
-   demain Supabase. `EXISTING_SEQUENCES` garde la forme { id, status, origin, data }
+   Passe par la couche Store (js/store.js), branchée sur Firestore.
+   `EXISTING_SEQUENCES` garde la forme { id, status, origin, data }
    et `SEQUENCES_READY` est résolu quand les données sont disponibles.
    ============================================================ */
 let EXISTING_SEQUENCES = [];
